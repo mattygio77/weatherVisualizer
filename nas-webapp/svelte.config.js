@@ -8,7 +8,10 @@ const config = {
     adapter: adapter({
       out: 'build',
       precompress: false
-    })
+    }),
+    csrf: {
+      checkOrigin: false
+    }
   }
 };
 

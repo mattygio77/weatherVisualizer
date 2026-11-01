@@ -1,6 +1,5 @@
 import crypto from 'crypto';
 
-const DASHBOARD_PIN = process.env.DASHBOARD_PIN || '123456';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'weather_secret_key_nas_1234567890abcdef';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
@@ -25,11 +24,14 @@ export function isIpLocked(ip: string): boolean {
 }
 
 export function verifyPin(pin: string, ip: string): { success: boolean; error?: string } {
+  const targetPin = (process.env.DASHBOARD_PIN || '123456').trim();
+  const inputPin = (pin || '').trim();
+
   if (isIpLocked(ip)) {
     return { success: false, error: 'Too many incorrect attempts. Please try again in 15 minutes.' };
   }
 
-  if (pin === DASHBOARD_PIN) {
+  if (inputPin === targetPin) {
     ipAttempts.delete(ip);
     return { success: true };
   }
