@@ -18,10 +18,12 @@
   // Active layer visibility
   let showTemp = true;
   let showFeels = true;
-  let showDew = false;
+  let showDew = true;
   let showHumidity = false;
   let showRain = true;
-  let showWind = false;
+  let showRainRate = true;
+  let showWind = true;
+  let showGusts = true;
 
   const timeframes = ['1H', '6H', '24H', '7D', '30D', '1Y'];
 
@@ -61,6 +63,7 @@
 
     const isDark = theme === 'dark';
     const textColor = isDark ? '#94A3B8' : '#64748B';
+    const titleColor = isDark ? '#CBD5E1' : '#334155';
     const gridLineColor = isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(226, 232, 240, 0.8)';
     const tempUnitLabel = unit === 'metric' ? '°C' : '°F';
     const rainUnitLabel = unit === 'metric' ? 'mm' : 'in';
@@ -72,6 +75,7 @@
     const dewData: (number | null)[] = [];
     const humidityData: (number | null)[] = [];
     const rainData: (number | null)[] = [];
+    const rainRateData: (number | null)[] = [];
     const windData: (number | null)[] = [];
     const gustData: (number | null)[] = [];
 
@@ -85,17 +89,19 @@
       }
 
       timestamps.push(timeLabel);
-      tempData.push(d.temp_f !== undefined ? convertTemp(d.temp_f) : null);
-      feelsData.push(d.feels_like_f !== undefined ? convertTemp(d.feels_like_f) : null);
-      dewData.push(d.dew_point_f !== undefined ? convertTemp(d.dew_point_f) : null);
-      humidityData.push(d.humidity !== undefined ? d.humidity : null);
-      rainData.push(d.rain_delta_in !== undefined ? convertRain(d.rain_delta_in) : 0);
-      windData.push(d.wind_speed_mph !== undefined ? convertSpeed(d.wind_speed_mph) : null);
-      gustData.push(d.wind_gust_mph !== undefined ? convertSpeed(d.wind_gust_mph) : null);
+      tempData.push(d.temp_f !== undefined && d.temp_f !== null ? convertTemp(d.temp_f) : null);
+      feelsData.push(d.feels_like_f !== undefined && d.feels_like_f !== null ? convertTemp(d.feels_like_f) : null);
+      dewData.push(d.dew_point_f !== undefined && d.dew_point_f !== null ? convertTemp(d.dew_point_f) : null);
+      humidityData.push(d.humidity !== undefined && d.humidity !== null ? d.humidity : null);
+      rainData.push(d.rain_delta_in !== undefined && d.rain_delta_in !== null ? convertRain(d.rain_delta_in) : 0);
+      rainRateData.push(d.rain_rate_in_hr !== undefined && d.rain_rate_in_hr !== null ? convertRain(d.rain_rate_in_hr) : 0);
+      windData.push(d.wind_speed_mph !== undefined && d.wind_speed_mph !== null ? convertSpeed(d.wind_speed_mph) : null);
+      gustData.push(d.wind_gust_mph !== undefined && d.wind_gust_mph !== null ? convertSpeed(d.wind_gust_mph) : null);
     }
 
     const series: any[] = [];
 
+    // --- Pane 1: Temperature & Humidity ---
     if (showTemp) {
       series.push({
         name: `Temp (${tempUnitLabel})`,
@@ -152,17 +158,33 @@
       });
     }
 
+    // --- Pane 2: Rainfall & Accumulation ---
     if (showRain) {
       series.push({
         name: `Rain (${rainUnitLabel})`,
         type: 'bar',
         data: rainData,
-        itemStyle: { color: 'rgba(56, 189, 248, 0.65)', borderRadius: [2, 2, 0, 0] },
+        itemStyle: { color: 'rgba(56, 189, 248, 0.75)', borderRadius: [2, 2, 0, 0] },
         xAxisIndex: 1,
         yAxisIndex: 2
       });
     }
 
+    if (showRainRate) {
+      series.push({
+        name: `Rain Rate (${rainUnitLabel}/h)`,
+        type: 'line',
+        data: rainRateData,
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 1.5, color: '#0284C7' },
+        itemStyle: { color: '#0284C7' },
+        xAxisIndex: 1,
+        yAxisIndex: 3
+      });
+    }
+
+    // --- Pane 3: Wind Speed & Gusts ---
     if (showWind) {
       series.push({
         name: `Wind (${speedUnitLabel})`,
@@ -170,21 +192,30 @@
         data: windData,
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 1.5, color: '#8B5CF6' },
+        lineStyle: { width: 1.8, color: '#8B5CF6' },
         itemStyle: { color: '#8B5CF6' },
-        xAxisIndex: 1,
-        yAxisIndex: 3
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(139, 92, 246, 0.25)' },
+            { offset: 1, color: 'rgba(139, 92, 246, 0.02)' }
+          ])
+        },
+        xAxisIndex: 2,
+        yAxisIndex: 4
       });
+    }
+
+    if (showGusts) {
       series.push({
         name: `Gust (${speedUnitLabel})`,
         type: 'line',
         data: gustData,
         smooth: true,
         showSymbol: false,
-        lineStyle: { width: 1.2, type: 'dotted', color: '#A78BFA' },
-        itemStyle: { color: '#A78BFA' },
-        xAxisIndex: 1,
-        yAxisIndex: 3
+        lineStyle: { width: 1.5, type: 'dotted', color: '#C084FC' },
+        itemStyle: { color: '#C084FC' },
+        xAxisIndex: 2,
+        yAxisIndex: 4
       });
     }
 
@@ -201,11 +232,36 @@
       axisPointer: {
         link: [{ xAxisIndex: 'all' }]
       },
+      title: [
+        {
+          text: `TEMPERATURE & COMFORT (${tempUnitLabel})`,
+          left: 55,
+          top: 6,
+          textStyle: { fontSize: 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
+        },
+        {
+          text: `RAINFALL & RATE (${rainUnitLabel})`,
+          left: 55,
+          top: '43%',
+          textStyle: { fontSize: 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
+        },
+        {
+          text: `WIND SPEED & GUSTS (${speedUnitLabel})`,
+          left: 55,
+          top: '71%',
+          textStyle: { fontSize: 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
+        }
+      ],
       grid: [
-        { left: 45, right: 45, top: 25, height: '52%' },
-        { left: 45, right: 45, top: '65%', height: '24%' }
+        // Grid 0: Temperature & Humidity
+        { left: 55, right: 55, top: 32, height: '33%' },
+        // Grid 1: Rainfall & Rate (Separate Pane)
+        { left: 55, right: 55, top: '48%', height: '18%' },
+        // Grid 2: Wind Speed & Gusts (Separate Pane)
+        { left: 55, right: 55, top: '76%', height: '18%' }
       ],
       xAxis: [
+        // 0: Top chart (labels hidden)
         {
           type: 'category',
           data: timestamps,
@@ -214,48 +270,93 @@
           axisLabel: { show: false },
           axisTick: { show: false }
         },
+        // 1: Middle chart (labels hidden)
         {
           type: 'category',
           data: timestamps,
           gridIndex: 1,
+          axisLine: { lineStyle: { color: gridLineColor } },
+          axisLabel: { show: false },
+          axisTick: { show: false }
+        },
+        // 2: Bottom chart (labels visible with time ticks)
+        {
+          type: 'category',
+          data: timestamps,
+          gridIndex: 2,
           axisLine: { lineStyle: { color: gridLineColor } },
           axisLabel: { color: textColor, fontSize: 10, interval: Math.floor(timestamps.length / 6) },
           axisTick: { show: false }
         }
       ],
       yAxis: [
+        // 0: Temp (Auto-scales to min & max of data with padding)
         {
           type: 'value',
           gridIndex: 0,
           position: 'left',
+          scale: true,
+          min: (val) => {
+            if (val.min === Infinity || isNaN(val.min)) return 0;
+            return Math.floor(val.min - 1);
+          },
+          max: (val) => {
+            if (val.max === -Infinity || isNaN(val.max)) return 100;
+            return Math.ceil(val.max + 1);
+          },
           splitLine: { lineStyle: { color: gridLineColor } },
           axisLabel: { color: textColor, fontSize: 10, formatter: `{value} ${tempUnitLabel}` }
         },
+        // 1: Humidity (Auto-scales or 0-100)
         {
           type: 'value',
           gridIndex: 0,
           position: 'right',
-          min: 0,
-          max: 100,
           show: showHumidity,
+          scale: true,
+          min: (val) => Math.max(0, Math.floor(val.min - 5)),
+          max: (val) => Math.min(100, Math.ceil(val.max + 5)),
           splitLine: { show: false },
           axisLabel: { color: textColor, fontSize: 10, formatter: '{value}%' }
         },
+        // 2: Rain Accumulation (Grid 1 - starts at 0, auto-scales max)
         {
           type: 'value',
           gridIndex: 1,
           position: 'left',
           min: 0,
+          max: (val) => {
+            if (val.max > 0) return Math.ceil(val.max * 10) / 10 + (unit === 'metric' ? 1 : 0.05);
+            return unit === 'metric' ? 5 : 0.2;
+          },
           splitLine: { lineStyle: { color: gridLineColor } },
           axisLabel: { color: textColor, fontSize: 10, formatter: `{value} ${rainUnitLabel}` }
         },
+        // 3: Rain Rate (Grid 1 - right axis)
         {
           type: 'value',
           gridIndex: 1,
           position: 'right',
+          show: showRainRate,
           min: 0,
-          show: showWind,
+          max: (val) => {
+            if (val.max > 0) return Math.ceil(val.max * 10) / 10 + 0.1;
+            return unit === 'metric' ? 10 : 0.5;
+          },
           splitLine: { show: false },
+          axisLabel: { color: textColor, fontSize: 10, formatter: `{value} ${unit === 'metric' ? 'mm/h' : 'in/h'}` }
+        },
+        // 4: Wind Speed & Gusts (Grid 2 - auto-scales max to peak gust)
+        {
+          type: 'value',
+          gridIndex: 2,
+          position: 'left',
+          min: 0,
+          max: (val) => {
+            if (val.max > 0) return Math.ceil(val.max + 3);
+            return unit === 'metric' ? 20 : 12;
+          },
+          splitLine: { lineStyle: { color: gridLineColor } },
           axisLabel: { color: textColor, fontSize: 10, formatter: `{value} ${speedUnitLabel}` }
         }
       ],
@@ -316,6 +417,7 @@
 
   <!-- Metric Layer Toggles -->
   <div class="flex flex-wrap items-center gap-3 mb-4 text-xs font-mono">
+    <!-- Temp Pane Layers -->
     <label class="flex items-center gap-1.5 cursor-pointer text-blue-600 dark:text-blue-400">
       <input type="checkbox" bind:checked={showTemp} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-blue-600" />
       <span>Temperature</span>
@@ -332,17 +434,32 @@
       <input type="checkbox" bind:checked={showHumidity} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-cyan-600" />
       <span>Humidity</span>
     </label>
+
     <div class="h-3 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
+
+    <!-- Rain Pane Layers -->
     <label class="flex items-center gap-1.5 cursor-pointer text-sky-500">
       <input type="checkbox" bind:checked={showRain} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-sky-500" />
-      <span>Rain</span>
+      <span>Rain Accum</span>
     </label>
+    <label class="flex items-center gap-1.5 cursor-pointer text-sky-600 dark:text-sky-400">
+      <input type="checkbox" bind:checked={showRainRate} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-sky-600" />
+      <span>Rain Rate</span>
+    </label>
+
+    <div class="h-3 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
+
+    <!-- Wind Pane Layers -->
     <label class="flex items-center gap-1.5 cursor-pointer text-purple-500">
       <input type="checkbox" bind:checked={showWind} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-purple-500" />
-      <span>Wind &amp; Gusts</span>
+      <span>Wind Speed</span>
+    </label>
+    <label class="flex items-center gap-1.5 cursor-pointer text-purple-400">
+      <input type="checkbox" bind:checked={showGusts} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-purple-400" />
+      <span>Gusts</span>
     </label>
   </div>
 
-  <!-- ECharts Canvas Container -->
-  <div bind:this={chartContainer} class="w-full h-80 sm:h-96"></div>
+  <!-- Synchronized 3-Pane ECharts Container -->
+  <div bind:this={chartContainer} class="w-full h-[540px] sm:h-[620px]"></div>
 </div>
