@@ -1,0 +1,17 @@
+services:
+  acurite-poc:
+    image: python:3.12-alpine
+    container_name: acurite-poc
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./poc_sniffer.py:/app/poc_sniffer.py:ro
+    # Configure with your Synology NAS local LAN IP (e.g., 192.168.1.XXX).
+    # If you stop/uninstall Synology's "DNS Server" package and uncomment "53:53/udp" below,
+    # this container will directly hijack DNS for rtupdate.wunderground.com -> <YOUR_NAS_IP>!
+    command: python3 -u /app/poc_sniffer.py --http-port 8080 --dns-ip ${NAS_LAN_IP:-192.168.1.100}
+    ports:
+      - "8080:8080/tcp"
+      # Uncomment the line below ONLY if Synology DNS Server package is stopped and you want
+      # this container to answer DNS queries on UDP port 53 directly:
+      # - "53:53/udp"

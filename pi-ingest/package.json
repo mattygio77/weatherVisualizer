@@ -1,0 +1,13 @@
+{
+  "name": "pi-relay",
+  "version": "1.0.0",
+  "description": "AcuRite 5-in-1 packet deduplicator, frame merger, /dev/shm spooler and HTTP forwarder",
+  "main": "relay.js",
+  "scripts": {
+    "start": "node relay.js"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=18"
+  }
+}

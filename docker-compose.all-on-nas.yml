@@ -1,0 +1,53 @@
+services:
+  pi-relay:
+    build: ./pi-ingest
+    container_name: pi-relay
+    restart: unless-stopped
+    volumes:
+      - /dev/shm:/dev/shm
+    environment:
+      - NAS_INGEST_URL=http://weather-web:3000/api/ingest
+      - INGEST_API_KEY=${INGEST_API_KEY:-acurite_sdr_secure_ingest_key_2026}
+      - SPOOL_FILE=/dev/shm/weather_spool.json
+      - SPOOL_MAX_HOURS=6
+    ports:
+      - "3001:3001"
+
+  rtl_433:
+    image: hertzg/rtl_433:latest
+    container_name: rtl_433
+    restart: unless-stopped
+    privileged: true
+    depends_on:
+      - pi-relay
+    devices:
+      - /dev/bus/usb:/dev/bus/usb
+    command: >
+      -f 433.92M
+      -R 40
+      -F syslog:pi-relay:1514
+      -M time:unix:usec:utc
+      -M level
+
+  weather-web:
+    build: ./nas-webapp
+    container_name: weather-web
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      - pi-relay
+    ports:
+      - "3000:3000"
+    volumes:
+      - /volume1/docker/weather-station/data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_PATH=/app/data/weather.db
+      - DASHBOARD_PIN=${DASHBOARD_PIN:-123456}
+      - SESSION_SECRET=${SESSION_SECRET:-acurite_weather_pws_session_secret_998877}
+      - WU_INTERCEPT_KEY=${WU_INTERCEPT_KEY:-12345}
+      - INGEST_API_KEY=${INGEST_API_KEY:-acurite_sdr_secure_ingest_key_2026}
+      - FLUSH_INTERVAL_HOURS=3
+      - PI_BACKFILL_URL=http://pi-relay:3001/spool
+      - TZ=America/New_York

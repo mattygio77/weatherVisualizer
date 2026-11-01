@@ -1,0 +1,20 @@
+services:
+  weather-web:
+    build: ./nas-webapp
+    container_name: weather-web
+    restart: unless-stopped
+    stop_grace_period: 30s
+    ports:
+      - "3000:3000"
+    volumes:
+      - /volume1/docker/weather-station/data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_PATH=/app/data/weather.db
+      - DASHBOARD_PIN=${DASHBOARD_PIN:-123456}
+      - SESSION_SECRET=${SESSION_SECRET:-acurite_weather_pws_session_secret_998877}
+      - WU_INTERCEPT_KEY=${WU_INTERCEPT_KEY:-12345}
+      - INGEST_API_KEY=${INGEST_API_KEY:-acurite_sdr_secure_ingest_key_2026}
+      - FLUSH_INTERVAL_HOURS=3
+      - TZ=America/New_York
