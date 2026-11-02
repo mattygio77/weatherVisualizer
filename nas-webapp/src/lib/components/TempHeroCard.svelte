@@ -7,6 +7,7 @@
   export let highTemp: number | null = null;
   export let lowTemp: number | null = null;
   export let sparkline: number[] = [];
+  export let isOnline: boolean = true;
 
   function formatTrend(t: number): string {
     if (Math.abs(t) < 0.1) return 'Steady';
@@ -49,22 +50,32 @@
       </div>
     </div>
 
-    <!-- 1-Hour Trend Pill -->
-    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium border {trend1h > 0
+    <!-- 1-Hour Trend / Status Pill -->
+    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium border {!isOnline
+      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+      : trend1h > 0
       ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
       : trend1h < 0
       ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20'
       : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'}">
-      {formatTrend(trend1h)}
+      {isOnline ? formatTrend(trend1h) : 'No Signal'}
     </div>
   </div>
 
   <!-- Middle: Hero Temperature Display -->
   <div class="my-3">
     <div class="flex items-baseline gap-2">
-      <span class="text-5xl sm:text-6xl font-bold font-mono tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
-        {formatTemp(reading?.temp_f, unit)}
-      </span>
+      {#if isOnline && reading?.temp_f !== undefined && reading?.temp_f !== null}
+        <span class="text-5xl sm:text-6xl font-bold font-mono tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
+          {formatTemp(reading.temp_f, unit)}
+        </span>
+      {:else}
+        <span class="text-5xl sm:text-6xl font-bold font-mono tracking-tight tabular-nums text-slate-400 dark:text-slate-600">
+          --
+        </span>
+        <span class="text-xs font-mono text-amber-500 font-medium">Awaiting Data</span>
+      {/if}
+
       {#if reading?.battery_ok === 0}
         <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
           LOW BATT
@@ -81,7 +92,7 @@
         {reading?.feels_like_type || 'Feels Like'}
       </span>
       <span class="text-base sm:text-lg font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {formatTemp(reading?.feels_like_f, unit)}
+        {isOnline ? formatTemp(reading?.feels_like_f, unit) : '--'}
       </span>
     </div>
 
@@ -94,10 +105,10 @@
       </div>
       <div class="flex items-baseline gap-1.5 mt-0.5">
         <span class="text-base sm:text-lg font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200">
-          {formatTemp(reading?.dew_point_f, unit)}
+          {isOnline ? formatTemp(reading?.dew_point_f, unit) : '--'}
         </span>
       </div>
-      {#if reading?.comfort_level}
+      {#if isOnline && reading?.comfort_level}
         <span class="text-[10px] font-medium text-blue-600 dark:text-blue-400">
           {reading.comfort_level}
         </span>
@@ -110,13 +121,13 @@
         Humidity
       </span>
       <span class="text-base sm:text-lg font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {reading?.humidity !== undefined ? `${reading.humidity}%` : '--'}
+        {isOnline && reading?.humidity !== undefined ? `${reading.humidity}%` : '--'}
       </span>
       <!-- Relative humidity progress bar -->
       <div class="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-1 mt-1.5 overflow-hidden">
         <div
           class="bg-blue-500 h-full rounded-full transition-all duration-300"
-          style="width: {reading?.humidity || 0}%"
+          style="width: {isOnline ? (reading?.humidity || 0) : 0}%"
         ></div>
       </div>
     </div>

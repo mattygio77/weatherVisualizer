@@ -3,6 +3,7 @@
 
   export let reading: WeatherReading | null = null;
   export let unit: UnitSystem = 'imperial';
+  export let isOnline: boolean = true;
 
   const directions = [
     { label: 'N', deg: 0 },
@@ -23,7 +24,7 @@
     { label: 'NNW', deg: 337.5 }
   ];
 
-  $: activeDirDeg = reading?.wind_dir_deg ?? 0;
+  $: activeDirDeg = isOnline ? (reading?.wind_dir_deg ?? 0) : 0;
 </script>
 
 <div class="rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between">
@@ -35,13 +36,13 @@
       </span>
       <div class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 mt-0.5">
         Direction: <strong class="text-slate-700 dark:text-slate-200">
-          {reading?.wind_cardinal || 'CALM'} {reading?.wind_dir_deg !== null ? `(${Math.round(reading?.wind_dir_deg || 0)}°)` : ''}
+          {isOnline ? (reading?.wind_cardinal || 'CALM') : 'OFFLINE'} {isOnline && reading?.wind_dir_deg !== null ? `(${Math.round(reading?.wind_dir_deg || 0)}°)` : ''}
         </strong>
       </div>
     </div>
 
-    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-      {formatSpeed(reading?.wind_speed_mph, unit)}
+    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium {isOnline ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-200 dark:border-slate-700'}">
+      {isOnline ? formatSpeed(reading?.wind_speed_mph, unit) : '--'}
     </div>
   </div>
 
@@ -73,7 +74,7 @@
         <!-- Dynamic Rotating Compass Needle -->
         <g transform="rotate({activeDirDeg}, 100, 100)" class="transition-transform duration-500 ease-out">
           <!-- North Tip (Accent) -->
-          <polygon points="100,28 94,95 106,95" fill="#EF4444" />
+          <polygon points="100,28 94,95 106,95" fill={isOnline ? '#EF4444' : '#94A3B8'} />
           <!-- South Tip (Neutral) -->
           <polygon points="100,165 95,105 105,105" fill="#94A3B8" />
           <!-- Center Pivot Hub -->
@@ -89,25 +90,25 @@
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">Current</span>
       <span class="text-xs sm:text-sm font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {formatSpeed(reading?.wind_speed_mph, unit)}
+        {isOnline ? formatSpeed(reading?.wind_speed_mph, unit) : '--'}
       </span>
     </div>
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">Sustained (2m)</span>
       <span class="text-xs sm:text-sm font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {formatSpeed(reading?.wind_sustained_mph, unit)}
+        {isOnline ? formatSpeed(reading?.wind_sustained_mph, unit) : '--'}
       </span>
     </div>
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">Gust (10m)</span>
       <span class="text-xs sm:text-sm font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {formatSpeed(reading?.wind_gust_mph, unit)}
+        {isOnline ? formatSpeed(reading?.wind_gust_mph, unit) : '--'}
       </span>
     </div>
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">Lull (10m)</span>
       <span class="text-xs sm:text-sm font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {formatSpeed(reading?.wind_lull_mph, unit)}
+        {isOnline ? formatSpeed(reading?.wind_lull_mph, unit) : '--'}
       </span>
     </div>
   </div>

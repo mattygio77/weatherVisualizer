@@ -311,7 +311,10 @@
           let html = `<div style="font-weight:600;margin-bottom:6px;font-family:monospace;border-bottom:1px solid ${isDark ? '#334155' : '#E2E8F0'};padding-bottom:3px;">${dateStr} · ${timeStr}</div>`;
 
           let hasData = false;
+          const seenSeries = new Set();
           for (const p of params) {
+            if (seenSeries.has(p.seriesName)) continue;
+            seenSeries.add(p.seriesName);
             if (p.value && p.value[1] !== null && p.value[1] !== undefined) {
               hasData = true;
               html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:11px;margin:2px 0;">

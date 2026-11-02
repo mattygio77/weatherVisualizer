@@ -6,8 +6,10 @@
   export let rain24h: number = 0;
   export let monthTotal: number = 0;
   export let yearTotal: number = 0;
+  export let isOnline: boolean = true;
 
   function getRainIntensity(rateInHr: number): { label: string; color: string } {
+    if (!isOnline) return { label: 'Offline', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' };
     if (rateInHr <= 0) return { label: 'Dry', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' };
     if (rateInHr < 0.10) return { label: 'Light Rain', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' };
     if (rateInHr < 0.30) return { label: 'Moderate Rain', color: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20' };
@@ -25,7 +27,7 @@
         Rainfall &amp; Rate
       </span>
       <div class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-        Live Rate: <strong class="text-slate-700 dark:text-slate-200">{formatRainRate(reading?.rain_rate_in_hr, unit)}</strong>
+        Live Rate: <strong class="text-slate-700 dark:text-slate-200">{isOnline ? formatRainRate(reading?.rain_rate_in_hr, unit) : '--'}</strong>
       </div>
     </div>
 

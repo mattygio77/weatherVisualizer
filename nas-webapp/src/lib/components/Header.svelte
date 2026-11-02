@@ -35,6 +35,15 @@
     if (hours > 0) return `${hours}h ${mins}m`;
     return `${mins}m`;
   }
+
+  function formatLastSeen(sec: number): string {
+    if (sec < 60) return `${sec}s ago`;
+    const mins = Math.floor(sec / 60);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    const remMins = mins % 60;
+    return `${hours}h ${remMins}m ago`;
+  }
 </script>
 
 <header class="border-b border-slate-200 dark:border-slate-800/80 bg-white/70 dark:bg-[#0c121e]/80 backdrop-blur-md sticky top-0 z-30 transition-colors">
@@ -53,7 +62,7 @@
       <div class="h-4 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
 
       <!-- Live status pulse -->
-      <div class="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+      <div class="flex items-center gap-1.5 text-xs">
         <span class="relative flex h-2 w-2">
           {#if isOnline}
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -62,12 +71,12 @@
             <span class="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
           {/if}
         </span>
-        <span class="font-medium text-[11px] uppercase tracking-wider hidden sm:inline">
-          {isOnline ? 'LIVE' : 'WAITING'}
+        <span class="font-medium text-[11px] uppercase tracking-wider hidden sm:inline font-mono {isOnline ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">
+          {isOnline ? 'LIVE' : 'OFFLINE'}
         </span>
         {#if lastPacketSecondsAgo >= 0}
           <span class="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
-            · {lastPacketSecondsAgo < 5 ? 'Just now' : `${lastPacketSecondsAgo}s ago`}
+            · {isOnline ? (lastPacketSecondsAgo < 5 ? 'Just now' : `${lastPacketSecondsAgo}s ago`) : `No Signal (${formatLastSeen(lastPacketSecondsAgo)})`}
           </span>
         {/if}
       </div>

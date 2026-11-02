@@ -10,6 +10,7 @@ services:
       - INGEST_API_KEY=${INGEST_API_KEY:-acurite_sdr_secure_ingest_key_2026}
       - SPOOL_FILE=/dev/shm/weather_spool.json
       - SPOOL_MAX_HOURS=6
+      - DEBUG=true
     ports:
       - "3001:3001"
 
@@ -26,8 +27,11 @@ services:
       -f 433.92M
       -R 40
       -F syslog:pi-relay:1514
+      -F log
+      -F kv
       -M time:unix:usec:utc
       -M level
+      -M stats
 
   weather-web:
     build: ./nas-webapp

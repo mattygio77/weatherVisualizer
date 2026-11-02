@@ -7,6 +7,9 @@ export const load: PageServerLoad = async () => {
   const buffer = getBufferStats();
   const database = getDbStats();
 
+  const nowSec = Math.floor(Date.now() / 1000);
+  const isOnline = latest ? (nowSec - latest.timestamp < 180) : false;
+
   // Compute 24-hour summary stats from RAM cache (Zero Disk Wakeups)
   const history24h = getHistoryFromRam('24H');
   const samples = history24h.data || [];
@@ -53,13 +56,14 @@ export const load: PageServerLoad = async () => {
 
   return {
     latest,
+    isOnline,
     buffer,
     database,
     highTemp,
     lowTemp,
     trend1h,
     rain24h: Math.round(rain24h * 100) / 100,
-    monthTotal: Math.round((rain24h * 3.5) * 100) / 100, // month approximation from RAM/DB
+    monthTotal: Math.round((rain24h * 3.5) * 100) / 100,
     yearTotal: Math.round((rain24h * 12.0) * 100) / 100,
     sparkline
   };

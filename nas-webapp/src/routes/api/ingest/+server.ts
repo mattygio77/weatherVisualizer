@@ -27,14 +27,11 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   const ts = body.timestamp || Math.floor(Date.now() / 1000);
-  const latest = getLatestReading();
   const rawTemp = body.temp_f ?? body.temperature_F ?? body.temp;
-  if (rawTemp === null || rawTemp === undefined) {
-    if (!latest || latest.temp_f === undefined) {
-      return json({ success: true, message: 'Awaiting temperature frame' });
-    }
+  if (rawTemp === null || rawTemp === undefined || isNaN(parseFloat(rawTemp))) {
+    return json({ success: false, error: 'No valid temperature provided in telemetry frame' }, { status: 422 });
   }
-  const tempF = rawTemp !== null && rawTemp !== undefined ? parseFloat(rawTemp) : latest.temp_f;
+  const tempF = parseFloat(rawTemp);
   const humidity = parseInt(body.humidity ?? 50, 10);
   const windMph = parseFloat(body.wind_speed_mph ?? body.wind_speed ?? 0.0);
   const windDir = body.wind_dir_deg !== undefined && body.wind_dir_deg !== null ? parseFloat(body.wind_dir_deg) : null;

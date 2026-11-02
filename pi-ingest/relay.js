@@ -4,11 +4,12 @@
  *
  * Responsibilities:
  * 1. Listen for rtl_433 syslog UDP packets (port 1514) and HTTP POSTs (port 3001)
- * 2. Deduplicate 3x packet bursts from AcuRite 5-in-1 sensor
- * 3. Merge alternating message_type 49 (wind/rain) and 56 (wind/temp/humidity)
- * 4. Spool unified readings to RAM disk (/dev/shm) for up to 6 hours
- * 5. Forward normalized weather JSON to nas-webapp (POST /api/ingest)
- * 6. Expose GET /spool and GET /health on port 3001
+ * 2. Strictly validate AcuRite 5-in-1 model and sensor ID (drops noise/default packets)
+ * 3. Deduplicate 3x packet bursts from AcuRite 5-in-1 sensor
+ * 4. Merge alternating message_type 49 (wind/rain) and 56 (wind/temp/humidity)
+ * 5. Track per-sensor staleness (drops stale readings if msg 56 drops out)
+ * 6. Forward normalized weather JSON to nas-webapp (POST /api/ingest)
+ * 7. Expose GET /spool and GET /health on port 3001
  */
 
 const dgram = require('dgram');
@@ -24,6 +25,7 @@ const NAS_INGEST_URL = process.env.NAS_INGEST_URL || 'http://weather-web:3000/ap
 const INGEST_API_KEY = process.env.INGEST_API_KEY || 'replace_with_long_random_secret';
 const SPOOL_FILE = process.env.SPOOL_FILE || '/dev/shm/weather_spool.json';
 const SPOOL_MAX_HOURS = parseFloat(process.env.SPOOL_MAX_HOURS || '6');
+const DEBUG = process.env.DEBUG !== 'false'; // Enabled by default
 
 // Statistics
 const stats = {
@@ -46,7 +48,6 @@ const sensorStates = new Map();
 // In-Memory Spool: array of unified observations
 let spool = [];
 
-// Try to recover spool from file if exists
 try {
   if (fs.existsSync(SPOOL_FILE)) {
     const raw = fs.readFileSync(SPOOL_FILE, 'utf-8');
@@ -153,19 +154,17 @@ function forwardToNas(observation) {
     res.on('end', () => {
       if (res.statusCode >= 200 && res.statusCode < 300) {
         stats.forwardSuccess++;
+        if (DEBUG) console.log(`[pi-relay] [FORWARD] Sensor ${observation.sensor_id} -> HTTP ${res.statusCode} (${observation.temp_f}°F, ${observation.humidity}%, ${observation.wind_speed_mph}mph)`);
       } else {
         stats.forwardErrors++;
-        console.warn(`[pi-relay] NAS ingest returned HTTP ${res.statusCode}: ${resBody.trim()}`);
+        console.warn(`[pi-relay] [FORWARD_WARN] HTTP ${res.statusCode}: ${resBody.trim()}`);
       }
     });
   });
 
   req.on('error', (err) => {
     stats.forwardErrors++;
-    // We log but don't crash; spool holds the reading
-    if (stats.forwardErrors % 10 === 1) {
-      console.warn(`[pi-relay] Forwarding to ${NAS_INGEST_URL} failed (${err.message}). Telemetry is preserved in spool.`);
-    }
+    console.error(`[pi-relay] [FORWARD_ERR] ${err.message}`);
   });
 
   req.on('timeout', () => {
@@ -184,14 +183,19 @@ function processPacket(pkt) {
   stats.packetsReceived++;
 
   const model = String(pkt.model || '').toLowerCase();
-  // Filter for AcuRite 5-in-1 sensors or standard AcuRite weather sensors
+  // Filter strictly for AcuRite 5-in-1 sensors; reject anything else or missing model
   const isAcurite = model.includes('acurite') || model.includes('5n1') || model.includes('5-in-1') || model.includes('vn1tx');
-  if (!isAcurite && model) {
-    // Silently ignore unrelated RF devices picked up on 433.92 MHz (e.g. tire pressure, doorbells)
+  if (!isAcurite) {
+    if (DEBUG && model) console.log(`[pi-relay] [DROP] Ignored non-AcuRite device: ${model}`);
     return;
   }
 
-  const sensorId = pkt.id || pkt.sensor_id || 'default';
+  // Reject packets without valid sensor ID
+  const sensorId = pkt.id || pkt.sensor_id;
+  if (!sensorId) {
+    return;
+  }
+
   const channel = pkt.channel || 'A';
   const msgType = pkt.message_type !== undefined ? pkt.message_type : (pkt.subtype || 0);
   const seqNum = pkt.sequence_num !== undefined ? pkt.sequence_num : 0;
@@ -201,6 +205,7 @@ function processPacket(pkt) {
   const sig = `${sensorId}:${channel}:${msgType}:${seqNum}:${pkt.temperature_C || pkt.temperature_F || ''}:${pkt.rain_in || pkt.rain_mm || ''}:${pkt.wind_avg_km_h || pkt.wind_speed_mph || ''}`;
   if (dedupCache.has(sig)) {
     stats.packetsDeduplicated++;
+    if (DEBUG) console.log(`[pi-relay] [DEDUP] Sensor ${sensorId} duplicate burst (msgType ${msgType})`);
     return;
   }
   dedupCache.set(sig, Date.now() + DEDUP_TTL_MS);
@@ -217,6 +222,8 @@ function processPacket(pkt) {
       wind_speed_mph: null,
       wind_dir_deg: null,
       rain_in: null,
+      last_temp_update: 0,
+      last_wind_update: 0,
       last_update: 0
     };
     sensorStates.set(sensorId, state);
@@ -225,13 +232,17 @@ function processPacket(pkt) {
   state.battery_ok = batteryOk;
   state.channel = channel;
 
+  const nowMs = Date.now();
   const windMph = normalizeWindSpeedMph(pkt);
   if (windMph !== null) {
     state.wind_speed_mph = windMph;
   }
 
+  if (DEBUG) console.log(`[pi-relay] [RX] Msg ${msgType} from Sensor ${sensorId} [Ch ${channel}]: temp=${pkt.temperature_F ?? pkt.temperature_C ?? "--"}°F, wind=${windMph ?? "--"}mph, rain=${pkt.rain_in ?? pkt.rain_mm ?? "--"}in`);
+
   // AcuRite Message Type 49 (0x31): Wind Speed, Wind Direction, Rain Counter
   if (msgType === 49 || msgType === 0x31) {
+    state.last_wind_update = nowMs;
     if (pkt.wind_dir_deg !== undefined && pkt.wind_dir_deg !== null) {
       state.wind_dir_deg = parseFloat(pkt.wind_dir_deg);
     }
@@ -246,6 +257,7 @@ function processPacket(pkt) {
     const tempF = normalizeTempF(pkt);
     if (tempF !== null) {
       state.temp_f = tempF;
+      state.last_temp_update = nowMs;
     }
     if (pkt.humidity !== undefined && pkt.humidity !== null) {
       state.humidity = parseInt(pkt.humidity, 10);
@@ -255,15 +267,37 @@ function processPacket(pkt) {
   // Generic or combined message
   if (msgType !== 49 && msgType !== 56) {
     const tempF = normalizeTempF(pkt);
-    if (tempF !== null) state.temp_f = tempF;
+    if (tempF !== null) {
+      state.temp_f = tempF;
+      state.last_temp_update = nowMs;
+    }
     if (pkt.humidity !== undefined && pkt.humidity !== null) state.humidity = parseInt(pkt.humidity, 10);
-    if (pkt.wind_dir_deg !== undefined && pkt.wind_dir_deg !== null) state.wind_dir_deg = parseFloat(pkt.wind_dir_deg);
+    if (pkt.wind_dir_deg !== undefined && pkt.wind_dir_deg !== null) {
+      state.wind_dir_deg = parseFloat(pkt.wind_dir_deg);
+      state.last_wind_update = nowMs;
+    }
     const rainIn = normalizeRainIn(pkt);
     if (rainIn !== null) state.rain_in = rainIn;
   }
 
-  state.last_update = Math.floor(Date.now() / 1000);
+  state.last_update = Math.floor(nowMs / 1000);
   stats.packetsMerged++;
+
+  // Watchdog: If no fresh temperature message in > 3 minutes (180s), invalidate temperature so we never freeze
+  if (nowMs - state.last_temp_update > 180000) {
+    if (state.temp_f !== null) console.warn(`[pi-relay] [WATCHDOG] Stale temp (>180s) on sensor ${sensorId}, setting to null`);
+    state.temp_f = null;
+  }
+
+  // Watchdog: If no fresh wind message in > 3 minutes (180s), invalidate wind
+  if (nowMs - state.last_wind_update > 180000) {
+    state.wind_dir_deg = null;
+  }
+
+  // Never forward an observation if temperature is missing
+  if (state.temp_f === null) {
+    return;
+  }
 
   // Build unified observation
   const observation = {
@@ -281,7 +315,6 @@ function processPacket(pkt) {
 
   stats.latestObservation = observation;
 
-  // Add to spool and forward to NAS
   spool.push(observation);
   if (spool.length > 5000) {
     spool.shift();
@@ -295,7 +328,6 @@ function processPacket(pkt) {
  */
 function handleSyslogMessage(msg) {
   const str = msg.toString('utf-8');
-  // Find JSON boundary in syslog message
   const firstBrace = str.indexOf('{');
   const lastBrace = str.lastIndexOf('}');
   if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
@@ -328,7 +360,7 @@ udpServer.bind(SYSLOG_PORT, '0.0.0.0', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Start HTTP Server (Health, Spool, and Direct Packet Ingest)
+// Start HTTP Server
 // ---------------------------------------------------------------------------
 const httpServer = http.createServer((req, res) => {
   const parsed = url.parse(req.url, true);
@@ -353,7 +385,6 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
-  // Direct packet ingest endpoint for manual testing or external rtl_433 feeds
   if (req.method === 'POST' && (parsed.pathname === '/packet' || parsed.pathname === '/ingest')) {
     let body = '';
     req.on('data', chunk => { body += chunk; });
@@ -381,19 +412,15 @@ const httpServer = http.createServer((req, res) => {
 
 httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
   console.log(`[pi-relay] HTTP API listening on http://0.0.0.0:${HTTP_PORT} (/health, /spool, /packet)`);
-  console.log(`[pi-relay] Forwarding telemetry to ${NAS_INGEST_URL}`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('[pi-relay] SIGTERM received. Saving spool and exiting...');
   saveSpool();
   udpServer.close();
   httpServer.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
-  console.log('[pi-relay] SIGINT received. Saving spool and exiting...');
   saveSpool();
   udpServer.close();
   httpServer.close(() => process.exit(0));

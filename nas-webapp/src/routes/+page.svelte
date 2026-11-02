@@ -16,6 +16,7 @@
   let theme: 'light' | 'dark' = 'dark';
 
   let reading: WeatherReading | null = data.latest;
+  let isOnline = data.isOnline ?? false;
   let bufferStats = data.buffer;
   let dbStats = data.database;
   let highTemp = data.highTemp;
@@ -26,8 +27,7 @@
   let yearTotal = data.yearTotal;
   let sparkline = data.sparkline || [];
 
-  let lastPacketSecondsAgo = 0;
-  let isOnline = false;
+  let lastPacketSecondsAgo = reading ? Math.max(0, Math.floor(Date.now() / 1000 - reading.timestamp)) : -1;
   let eventSource: EventSource | null = null;
   let tickerTimer: NodeJS.Timeout | null = null;
   let statusPollTimer: NodeJS.Timeout | null = null;
@@ -81,12 +81,15 @@
     }
     applyTheme();
 
-    // Start 1-second interval ticker for packet age
+    // Start 1-second interval ticker for packet age and online/offline status
     tickerTimer = setInterval(() => {
       if (reading) {
         lastPacketSecondsAgo = Math.max(0, Math.floor(Date.now() / 1000 - reading.timestamp));
-        isOnline = lastPacketSecondsAgo < 90; // AcuRite transmits every 18-36s
+        isOnline = lastPacketSecondsAgo < 180; // 3 minutes without packet = OFFLINE
+      } else {
+        isOnline = false;
       }
+
       if (bufferStats && bufferStats.nextFlushSeconds > 0) {
         bufferStats.nextFlushSeconds = Math.max(0, bufferStats.nextFlushSeconds - 1);
       }
@@ -110,7 +113,7 @@
         }
 
         // Live high/low & sparkline update
-        if (fresh.temp_f !== undefined) {
+        if (fresh.temp_f !== undefined && fresh.temp_f !== null) {
           if (highTemp === null || fresh.temp_f > highTemp) highTemp = fresh.temp_f;
           if (lowTemp === null || fresh.temp_f < lowTemp) lowTemp = fresh.temp_f;
           sparkline = [...sparkline.slice(-200), fresh.temp_f];
@@ -121,11 +124,11 @@
     });
 
     eventSource.addEventListener('ping', () => {
-      isOnline = true;
+      // Ping confirms socket connectivity to server
     });
 
     eventSource.onerror = () => {
-      isOnline = false;
+      // Socket disconnect
     };
   });
 
@@ -161,6 +164,7 @@
           {highTemp}
           {lowTemp}
           {sparkline}
+          {isOnline}
         />
       </div>
 
@@ -172,6 +176,7 @@
           {rain24h}
           {monthTotal}
           {yearTotal}
+          {isOnline}
         />
       </div>
     </div>
@@ -189,6 +194,7 @@
         <WindRoseCard
           {reading}
           {unit}
+          {isOnline}
         />
       </div>
 
