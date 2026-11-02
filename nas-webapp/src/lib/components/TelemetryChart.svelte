@@ -43,19 +43,48 @@
     }
   }
 
-  function convertTemp(f: number) {
+  function convertTemp(f: number | null | undefined): number | null {
+    if (f === undefined || f === null || isNaN(f)) return null;
     if (unit === 'metric') return Math.round(((f - 32) * (5 / 9)) * 10) / 10;
-    return f;
+    return Math.round(f * 10) / 10;
   }
 
-  function convertRain(inches: number) {
+  function convertRain(inches: number | null | undefined): number | null {
+    if (inches === undefined || inches === null || isNaN(inches)) return null;
     if (unit === 'metric') return Math.round(inches * 25.4 * 10) / 10;
-    return inches;
+    return Math.round(inches * 100) / 100;
   }
 
-  function convertSpeed(mph: number) {
+  function convertSpeed(mph: number | null | undefined): number | null {
+    if (mph === undefined || mph === null || isNaN(mph)) return null;
     if (unit === 'metric') return Math.round(mph * 1.60934 * 10) / 10;
-    return mph;
+    return Math.round(mph * 10) / 10;
+  }
+
+  function getGapThresholdSeconds(tf: string): number {
+    switch (tf) {
+      case '1H': return 90;     // > 1.5 min without packet = gap
+      case '6H': return 180;    // > 3 min without packet = gap
+      case '24H': return 900;   // > 15 min without packet = gap
+      case '7D': return 1800;   // > 30 min without packet = gap
+      case '30D':
+      case '1Y': return 7200;   // > 2 hours without packet = gap
+      default: return 900;
+    }
+  }
+
+  function getTimeBounds(tf: string): { min: number; max: number } {
+    const nowMs = Date.now();
+    let durationMs = 24 * 3600 * 1000;
+    switch (tf) {
+      case '1H': durationMs = 3600 * 1000; break;
+      case '6H': durationMs = 6 * 3600 * 1000; break;
+      case '24H': durationMs = 24 * 3600 * 1000; break;
+      case '7D': durationMs = 7 * 24 * 3600 * 1000; break;
+      case '30D': durationMs = 30 * 24 * 3600 * 1000; break;
+      case '1Y': durationMs = 365 * 24 * 3600 * 1000; break;
+    }
+    return { min: nowMs - durationMs, max: nowMs };
   }
 
   function updateChart(data: any[]) {
@@ -69,34 +98,70 @@
     const rainUnitLabel = unit === 'metric' ? 'mm' : 'in';
     const speedUnitLabel = unit === 'metric' ? 'km/h' : 'mph';
 
-    const timestamps: string[] = [];
-    const tempData: (number | null)[] = [];
-    const feelsData: (number | null)[] = [];
-    const dewData: (number | null)[] = [];
-    const humidityData: (number | null)[] = [];
-    const rainData: (number | null)[] = [];
-    const rainRateData: (number | null)[] = [];
-    const windData: (number | null)[] = [];
-    const gustData: (number | null)[] = [];
+    const gapThresholdSec = getGapThresholdSeconds(currentTimeframe);
+    const { min: timelineMin, max: timelineMax } = getTimeBounds(currentTimeframe);
 
-    for (const d of data) {
-      const date = new Date(d.timestamp * 1000);
-      let timeLabel = '';
-      if (currentTimeframe === '1H' || currentTimeframe === '6H' || currentTimeframe === '24H') {
-        timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      } else {
-        timeLabel = `${date.getMonth() + 1}/${date.getDate()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    // Arrays of [timestampMs, value] with null inserts on gaps for line disconnects
+    const tempData: [number, number | null][] = [];
+    const feelsData: [number, number | null][] = [];
+    const dewData: [number, number | null][] = [];
+    const humidityData: [number, number | null][] = [];
+    const rainData: [number, number | null][] = [];
+    const rainRateData: [number, number | null][] = [];
+    const windData: [number, number | null][] = [];
+    const gustData: [number, number | null][] = [];
+
+    // Sort data chronologically ascending
+    const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
+
+    for (let i = 0; i < sorted.length; i++) {
+      const d = sorted[i];
+
+      // Detect data gaps between consecutive points
+      if (i > 0) {
+        const deltaSec = d.timestamp - sorted[i - 1].timestamp;
+        if (deltaSec > gapThresholdSec) {
+          // Insert null entries at both ends of the gap to disconnect the line cleanly
+          const gapStartMs = (sorted[i - 1].timestamp + 1) * 1000;
+          const gapEndMs = (d.timestamp - 1) * 1000;
+
+          tempData.push([gapStartMs, null], [gapEndMs, null]);
+          feelsData.push([gapStartMs, null], [gapEndMs, null]);
+          dewData.push([gapStartMs, null], [gapEndMs, null]);
+          humidityData.push([gapStartMs, null], [gapEndMs, null]);
+          rainData.push([gapStartMs, null], [gapEndMs, null]);
+          rainRateData.push([gapStartMs, null], [gapEndMs, null]);
+          windData.push([gapStartMs, null], [gapEndMs, null]);
+          gustData.push([gapStartMs, null], [gapEndMs, null]);
+        }
       }
 
-      timestamps.push(timeLabel);
-      tempData.push(d.temp_f !== undefined && d.temp_f !== null ? convertTemp(d.temp_f) : null);
-      feelsData.push(d.feels_like_f !== undefined && d.feels_like_f !== null ? convertTemp(d.feels_like_f) : null);
-      dewData.push(d.dew_point_f !== undefined && d.dew_point_f !== null ? convertTemp(d.dew_point_f) : null);
-      humidityData.push(d.humidity !== undefined && d.humidity !== null ? d.humidity : null);
-      rainData.push(d.rain_delta_in !== undefined && d.rain_delta_in !== null ? convertRain(d.rain_delta_in) : 0);
-      rainRateData.push(d.rain_rate_in_hr !== undefined && d.rain_rate_in_hr !== null ? convertRain(d.rain_rate_in_hr) : 0);
-      windData.push(d.wind_speed_mph !== undefined && d.wind_speed_mph !== null ? convertSpeed(d.wind_speed_mph) : null);
-      gustData.push(d.wind_gust_mph !== undefined && d.wind_gust_mph !== null ? convertSpeed(d.wind_gust_mph) : null);
+      const tsMs = d.timestamp * 1000;
+      tempData.push([tsMs, convertTemp(d.temp_f)]);
+      feelsData.push([tsMs, convertTemp(d.feels_like_f)]);
+      dewData.push([tsMs, convertTemp(d.dew_point_f)]);
+      humidityData.push([tsMs, d.humidity !== undefined && d.humidity !== null ? d.humidity : null]);
+      rainData.push([tsMs, convertRain(d.rain_delta_in || 0)]);
+      rainRateData.push([tsMs, convertRain(d.rain_rate_in_hr || 0)]);
+      windData.push([tsMs, convertSpeed(d.wind_speed_mph)]);
+      gustData.push([tsMs, convertSpeed(d.wind_gust_mph)]);
+    }
+
+    // If the latest point is older than gap threshold, disconnect up to the current time
+    if (sorted.length > 0) {
+      const lastTs = sorted[sorted.length - 1].timestamp;
+      const nowSec = Math.floor(Date.now() / 1000);
+      if (nowSec - lastTs > gapThresholdSec) {
+        const disconnectMs = (lastTs + 1) * 1000;
+        tempData.push([disconnectMs, null], [timelineMax, null]);
+        feelsData.push([disconnectMs, null], [timelineMax, null]);
+        dewData.push([disconnectMs, null], [timelineMax, null]);
+        humidityData.push([disconnectMs, null], [timelineMax, null]);
+        rainData.push([disconnectMs, null], [timelineMax, null]);
+        rainRateData.push([disconnectMs, null], [timelineMax, null]);
+        windData.push([disconnectMs, null], [timelineMax, null]);
+        gustData.push([disconnectMs, null], [timelineMax, null]);
+      }
     }
 
     const series: any[] = [];
@@ -107,9 +172,10 @@
         name: `Temp (${tempUnitLabel})`,
         type: 'line',
         data: tempData,
-        smooth: true,
+        connectNulls: false, // Disconnect line across gaps
+        smooth: false,
         showSymbol: false,
-        lineStyle: { width: 2.5, color: '#3B82F6' },
+        lineStyle: { width: 2.2, color: '#3B82F6' },
         itemStyle: { color: '#3B82F6' },
         xAxisIndex: 0,
         yAxisIndex: 0
@@ -121,7 +187,8 @@
         name: `Feels Like (${tempUnitLabel})`,
         type: 'line',
         data: feelsData,
-        smooth: true,
+        connectNulls: false,
+        smooth: false,
         showSymbol: false,
         lineStyle: { width: 1.5, type: 'dashed', color: '#60A5FA' },
         itemStyle: { color: '#60A5FA' },
@@ -135,7 +202,8 @@
         name: `Dew Point (${tempUnitLabel})`,
         type: 'line',
         data: dewData,
-        smooth: true,
+        connectNulls: false,
+        smooth: false,
         showSymbol: false,
         lineStyle: { width: 1.5, color: '#10B981' },
         itemStyle: { color: '#10B981' },
@@ -149,7 +217,8 @@
         name: 'Humidity (%)',
         type: 'line',
         data: humidityData,
-        smooth: true,
+        connectNulls: false,
+        smooth: false,
         showSymbol: false,
         lineStyle: { width: 1.5, color: '#06B6D4' },
         itemStyle: { color: '#06B6D4' },
@@ -164,7 +233,8 @@
         name: `Rain (${rainUnitLabel})`,
         type: 'bar',
         data: rainData,
-        itemStyle: { color: 'rgba(56, 189, 248, 0.75)', borderRadius: [2, 2, 0, 0] },
+        barMaxWidth: 6,
+        itemStyle: { color: 'rgba(56, 189, 248, 0.8)', borderRadius: [2, 2, 0, 0] },
         xAxisIndex: 1,
         yAxisIndex: 2
       });
@@ -175,7 +245,8 @@
         name: `Rain Rate (${rainUnitLabel}/h)`,
         type: 'line',
         data: rainRateData,
-        smooth: true,
+        connectNulls: false,
+        smooth: false,
         showSymbol: false,
         lineStyle: { width: 1.5, color: '#0284C7' },
         itemStyle: { color: '#0284C7' },
@@ -190,7 +261,8 @@
         name: `Wind (${speedUnitLabel})`,
         type: 'line',
         data: windData,
-        smooth: true,
+        connectNulls: false,
+        smooth: false,
         showSymbol: false,
         lineStyle: { width: 1.8, color: '#8B5CF6' },
         itemStyle: { color: '#8B5CF6' },
@@ -210,7 +282,8 @@
         name: `Gust (${speedUnitLabel})`,
         type: 'line',
         data: gustData,
-        smooth: true,
+        connectNulls: false,
+        smooth: false,
         showSymbol: false,
         lineStyle: { width: 1.5, type: 'dotted', color: '#C084FC' },
         itemStyle: { color: '#C084FC' },
@@ -227,7 +300,31 @@
         axisPointer: { type: 'cross', lineStyle: { color: '#64748B', type: 'dashed' } },
         backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
         borderColor: isDark ? '#334155' : '#E2E8F0',
-        textStyle: { color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 12 }
+        textStyle: { color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 12 },
+        formatter: (params: any) => {
+          if (!params || !params.length) return '';
+          const valid = params.find((p: any) => p.value && p.value[1] !== null && p.value[1] !== undefined);
+          const ts = valid ? valid.value[0] : params[0].value[0];
+          const d = new Date(ts);
+          const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+          const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+          let html = `<div style="font-weight:600;margin-bottom:6px;font-family:monospace;border-bottom:1px solid ${isDark ? '#334155' : '#E2E8F0'};padding-bottom:3px;">${dateStr} · ${timeStr}</div>`;
+
+          let hasData = false;
+          for (const p of params) {
+            if (p.value && p.value[1] !== null && p.value[1] !== undefined) {
+              hasData = true;
+              html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:11px;margin:2px 0;">
+                <span>${p.marker} ${p.seriesName}</span>
+                <span style="font-weight:bold;font-family:monospace;">${p.value[1]}</span>
+              </div>`;
+            }
+          }
+          if (!hasData) {
+            html += `<div style="font-size:11px;color:#94A3B8;font-style:italic;">No signal / Disconnected</div>`;
+          }
+          return html;
+        }
       },
       axisPointer: {
         link: [{ xAxisIndex: 'all' }]
@@ -261,36 +358,53 @@
         { left: 55, right: 55, top: '76%', height: '18%' }
       ],
       xAxis: [
-        // 0: Top chart (labels hidden)
+        // 0: Top chart (labels hidden, true linear time axis)
         {
-          type: 'category',
-          data: timestamps,
+          type: 'time',
+          min: timelineMin,
+          max: timelineMax,
           gridIndex: 0,
           axisLine: { lineStyle: { color: gridLineColor } },
           axisLabel: { show: false },
+          splitLine: { show: true, lineStyle: { color: gridLineColor } },
           axisTick: { show: false }
         },
-        // 1: Middle chart (labels hidden)
+        // 1: Middle chart (labels hidden, true linear time axis)
         {
-          type: 'category',
-          data: timestamps,
+          type: 'time',
+          min: timelineMin,
+          max: timelineMax,
           gridIndex: 1,
           axisLine: { lineStyle: { color: gridLineColor } },
           axisLabel: { show: false },
+          splitLine: { show: true, lineStyle: { color: gridLineColor } },
           axisTick: { show: false }
         },
-        // 2: Bottom chart (labels visible with time ticks)
+        // 2: Bottom chart (labels visible, mathematically even time increments)
         {
-          type: 'category',
-          data: timestamps,
+          type: 'time',
+          min: timelineMin,
+          max: timelineMax,
           gridIndex: 2,
           axisLine: { lineStyle: { color: gridLineColor } },
-          axisLabel: { color: textColor, fontSize: 10, interval: Math.floor(timestamps.length / 6) },
-          axisTick: { show: false }
+          splitLine: { show: true, lineStyle: { color: gridLineColor } },
+          axisTick: { show: true, lineStyle: { color: gridLineColor } },
+          axisLabel: {
+            color: textColor,
+            fontSize: 10,
+            fontFamily: 'monospace',
+            formatter: (val: number) => {
+              const d = new Date(val);
+              if (currentTimeframe === '1H' || currentTimeframe === '6H' || currentTimeframe === '24H') {
+                return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              }
+              return `${d.getMonth() + 1}/${d.getDate()} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+            }
+          }
         }
       ],
       yAxis: [
-        // 0: Temp (Auto-scales to min & max of data with padding)
+        // 0: Temp (Auto-scales dynamically to min & max of data with padding)
         {
           type: 'value',
           gridIndex: 0,

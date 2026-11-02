@@ -8,7 +8,7 @@ import {
   processWindTelemetry,
   type WeatherReading
 } from '$lib/server/meteorology';
-import { pushReading } from '$lib/server/buffer';
+import { pushReading, getLatestReading } from '$lib/server/buffer';
 import { broadcastTelemetry } from '$lib/server/sse';
 
 const INGEST_API_KEY = process.env.INGEST_API_KEY || 'replace_with_long_random_secret';
@@ -27,7 +27,14 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   const ts = body.timestamp || Math.floor(Date.now() / 1000);
-  const tempF = parseFloat(body.temp_f ?? body.temperature_F ?? body.temp ?? 70.0);
+  const latest = getLatestReading();
+  const rawTemp = body.temp_f ?? body.temperature_F ?? body.temp;
+  if (rawTemp === null || rawTemp === undefined) {
+    if (!latest || latest.temp_f === undefined) {
+      return json({ success: true, message: 'Awaiting temperature frame' });
+    }
+  }
+  const tempF = rawTemp !== null && rawTemp !== undefined ? parseFloat(rawTemp) : latest.temp_f;
   const humidity = parseInt(body.humidity ?? 50, 10);
   const windMph = parseFloat(body.wind_speed_mph ?? body.wind_speed ?? 0.0);
   const windDir = body.wind_dir_deg !== undefined && body.wind_dir_deg !== null ? parseFloat(body.wind_dir_deg) : null;

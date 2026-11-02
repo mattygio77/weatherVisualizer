@@ -7,7 +7,7 @@ import {
   processWindTelemetry,
   type WeatherReading
 } from '$lib/server/meteorology';
-import { pushReading } from '$lib/server/buffer';
+import { pushReading, getLatestReading } from '$lib/server/buffer';
 import { broadcastTelemetry } from '$lib/server/sse';
 import type { RequestHandler } from '@sveltejs/kit';
 
@@ -35,7 +35,8 @@ async function handleWeatherUndergroundIntercept(url: URL, request: Request): Pr
   // Verify telemetry presence
   if (params.tempf || params.windspeedmph || params.humidity) {
     const ts = Math.floor(Date.now() / 1000);
-    const tempF = parseFloat(params.tempf || '70.0');
+    const latest = getLatestReading();
+    const tempF = params.tempf ? parseFloat(params.tempf) : (latest?.temp_f ?? 0);
     const humidity = parseInt(params.humidity || '50', 10);
     const windMph = parseFloat(params.windspeedmph || '0.0');
     const windDir = params.winddir ? parseFloat(params.winddir) : null;
