@@ -202,7 +202,7 @@ function processPacket(pkt) {
   const batteryOk = pkt.battery_ok !== undefined ? (pkt.battery_ok ? 1 : 0) : 1;
 
   // Compute signature for burst deduplication
-  const sig = `${sensorId}:${channel}:${msgType}:${seqNum}:${pkt.temperature_C || pkt.temperature_F || ''}:${pkt.rain_in || pkt.rain_mm || ''}:${pkt.wind_avg_km_h || pkt.wind_speed_mph || ''}`;
+  const sig = `${sensorId}:${channel}:${msgType}:${pkt.temperature_C || pkt.temperature_F || ''}:${pkt.rain_in || pkt.rain_mm || ''}:${pkt.wind_avg_km_h || pkt.wind_speed_mph || ''}`;
   if (dedupCache.has(sig)) {
     stats.packetsDeduplicated++;
     if (DEBUG) console.log(`[pi-relay] [DEDUP] Sensor ${sensorId} duplicate burst (msgType ${msgType})`);

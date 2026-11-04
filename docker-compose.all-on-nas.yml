@@ -26,6 +26,7 @@ services:
     command: >
       -f 433.92M
       -R 40
+      -g 42.1
       -F syslog:pi-relay:1514
       -F log
       -F kv
