@@ -32,7 +32,7 @@
   })();
 </script>
 
-<div class="relative overflow-hidden rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between">
+<div class="relative overflow-hidden rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between h-full flex-1">
   <!-- Top: Card Label & Today's High/Low -->
   <div class="flex items-start justify-between mb-4">
     <div>

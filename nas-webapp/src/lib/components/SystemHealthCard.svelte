@@ -33,7 +33,7 @@
   }
 </script>
 
-<div class="rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between">
+<div class="rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between h-full flex-1">
   <!-- Top: Card Label & Ingestion Badge -->
   <div class="flex items-center justify-between mb-4">
     <div>
@@ -56,7 +56,7 @@
   </div>
 
   <!-- Middle: Barometer & Storage Specs -->
-  <div class="grid grid-cols-2 gap-4 my-2">
+  <div class="grid grid-cols-2 gap-4 my-auto py-2">
     <!-- Barometer -->
     <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
@@ -81,7 +81,7 @@
   </div>
 
   <!-- Bottom: 3-Hour RAM Batching Engine Info & Action Button -->
-  <div class="pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+  <div class="pt-4 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 min-h-[58px]">
     <div class="text-xs font-mono text-slate-500 dark:text-slate-400">
       <div>RAM Buffer: <strong class="text-slate-700 dark:text-slate-200">{bufferStats?.queueLength ?? 0}</strong> unflushed</div>
       <div class="text-[11px] text-slate-400">Last Disk Write: {formatTime(bufferStats?.lastFlushTimestamp ?? 0)}</div>

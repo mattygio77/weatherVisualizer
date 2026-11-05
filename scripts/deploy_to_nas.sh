@@ -50,6 +50,12 @@ tar --exclude='node_modules' --exclude='.git' --exclude='.svelte-kit' --exclude=
   nas-webapp | \
   ssh -o StrictHostKeyChecking=no $KEY_ARG "${NAS_USER}@${NAS_IP}" "tar -xzf - -C ${TARGET_DIR} && cp ${TARGET_DIR}/docker-compose.all-on-nas.yml ${TARGET_DIR}/docker-compose.yml"
 
+# 3. Securely sync .env secrets if present locally (file is gitignored)
+if [ -f "$REPO_DIR/.env" ]; then
+  echo "🔐 Syncing .env secrets to NAS..."
+  scp -o StrictHostKeyChecking=no $KEY_ARG "$REPO_DIR/.env" "${NAS_USER}@${NAS_IP}:${TARGET_DIR}/.env"
+fi
+
 echo "================================================================="
 echo " Sync complete! Files are staged at ${TARGET_DIR}."
 echo " Ready for Synology Container Manager."

@@ -19,7 +19,7 @@
   $: intensity = getRainIntensity(reading?.rain_rate_in_hr || 0);
 </script>
 
-<div class="relative overflow-hidden rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between">
+<div class="relative overflow-hidden rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between h-full flex-1">
   <!-- Top: Card Label & Intensity Badge -->
   <div class="flex items-start justify-between mb-4">
     <div>
@@ -50,7 +50,7 @@
   </div>
 
   <!-- Bottom: 4-Cell Accumulation Grid -->
-  <div class="grid grid-cols-4 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/80 z-10 text-center sm:text-left">
+  <div class="grid grid-cols-4 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/80 z-10 text-center sm:text-left min-h-[64px] items-start">
     <!-- Storm Total -->
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">

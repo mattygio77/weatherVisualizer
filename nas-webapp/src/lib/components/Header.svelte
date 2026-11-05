@@ -74,9 +74,9 @@
         <span class="font-medium text-[11px] uppercase tracking-wider hidden sm:inline font-mono {isOnline ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">
           {isOnline ? 'LIVE' : 'OFFLINE'}
         </span>
-        {#if lastPacketSecondsAgo >= 0}
+        {#if !isOnline && lastPacketSecondsAgo >= 0}
           <span class="text-[11px] text-slate-400 dark:text-slate-500 font-mono">
-            · {isOnline ? (lastPacketSecondsAgo < 5 ? 'Just now' : `${lastPacketSecondsAgo}s ago`) : `No Signal (${formatLastSeen(lastPacketSecondsAgo)})`}
+            · No Signal ({formatLastSeen(lastPacketSecondsAgo)})
           </span>
         {/if}
       </div>

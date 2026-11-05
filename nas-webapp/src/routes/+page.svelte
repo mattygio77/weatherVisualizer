@@ -154,9 +154,9 @@
 
   <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
     <!-- Tier 1: Hero Cards — Temperature & Rainfall (Top Priority, 12-Column Grid) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
       <!-- Temperature Card: 7 Columns on Desktop -->
-      <div class="lg:col-span-7 flex flex-col">
+      <div class="lg:col-span-7 flex flex-col h-full">
         <TempHeroCard
           {reading}
           {unit}
@@ -169,7 +169,7 @@
       </div>
 
       <!-- Rainfall Card: 5 Columns on Desktop -->
-      <div class="lg:col-span-5 flex flex-col">
+      <div class="lg:col-span-5 flex flex-col h-full">
         <RainHeroCard
           {reading}
           {unit}
@@ -188,9 +188,9 @@
     />
 
     <!-- Tier 3: Wind Rose, Compass & Hardware Health (Secondary Priority, 12-Column Grid) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-6 items-stretch">
       <!-- Wind Rose & Compass: 6 Columns on Desktop -->
-      <div class="lg:col-span-6 flex flex-col">
+      <div class="lg:col-span-6 flex flex-col h-full">
         <WindRoseCard
           {reading}
           {unit}
@@ -199,7 +199,7 @@
       </div>
 
       <!-- Station & System Telemetry: 6 Columns on Desktop -->
-      <div class="lg:col-span-6 flex flex-col">
+      <div class="lg:col-span-6 flex flex-col h-full">
         <SystemHealthCard
           {reading}
           {unit}
