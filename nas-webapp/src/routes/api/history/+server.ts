@@ -1,10 +1,11 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { getHistoryFromRam } from '$lib/server/buffer';
+import { getHistoryFromRam, getRamRainTotals } from '$lib/server/buffer';
 import { queryHistoryDb } from '$lib/server/db';
 
 export const GET: RequestHandler = ({ url }) => {
   const timeframe = url.searchParams.get('timeframe') || '24H';
   const now = Math.floor(Date.now() / 1000);
+  const rainTotals = getRamRainTotals();
 
   // 1H, 6H, and 24H are served 100% from RAM to avoid hard drive spin-ups
   if (timeframe === '1H' || timeframe === '6H' || timeframe === '24H') {
@@ -13,6 +14,7 @@ export const GET: RequestHandler = ({ url }) => {
       timeframe,
       resolution: result.resolution,
       source: 'ram_buffer',
+      rainToday: rainTotals.rainToday,
       data: result.data
     });
   }

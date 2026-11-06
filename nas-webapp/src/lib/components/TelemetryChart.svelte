@@ -27,6 +27,8 @@
 
   const timeframes = ['1H', '6H', '24H', '7D', '30D', '1Y'];
 
+  let activeRainToday: number | null = null;
+
   async function fetchHistory(tf: string) {
     currentTimeframe = tf;
     loading = true;
@@ -35,6 +37,7 @@
       const json = await res.json();
       activeResolution = json.resolution || 'raw';
       activeSource = json.source || 'ram_buffer';
+      activeRainToday = json.rainToday !== undefined ? json.rainToday : null;
       updateChart(json.data || []);
     } catch (e) {
       console.error('Failed to fetch history:', e);
@@ -91,6 +94,10 @@
     if (!chartInstance) return;
 
     const isDark = theme === 'dark';
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+    const gridLeft = isMobile ? 38 : 55;
+    const gridRight = isMobile ? 38 : 55;
+    const titleLeft = isMobile ? 38 : 55;
     const textColor = isDark ? '#94A3B8' : '#64748B';
     const titleColor = isDark ? '#CBD5E1' : '#334155';
     const gridLineColor = isDark ? 'rgba(30, 41, 59, 0.6)' : 'rgba(226, 232, 240, 0.8)';
@@ -115,8 +122,8 @@
     // Sort data chronologically ascending
     const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
 
-    // Find the latest known rain_today_in (e.g. 0.13 in)
-    let latestKnownTodayRain: number | null = null;
+    // Find the latest known rain_today_in from data or activeRainToday
+    let latestKnownTodayRain: number | null = activeRainToday;
     for (let i = sorted.length - 1; i >= 0; i--) {
       if (sorted[i].rain_today_in !== undefined && sorted[i].rain_today_in !== null) {
         latestKnownTodayRain = sorted[i].rain_today_in;
@@ -124,10 +131,35 @@
       }
     }
 
+    const now = new Date();
+    const startOfTodaySec = Math.floor(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).getTime() / 1000);
+    const n = sorted.length;
+    const rainAtPoint: number[] = new Array(n);
+
+    // Precalculate rain accumulation for today's points by integrating backwards from latestKnownTodayRain
+    if (latestKnownTodayRain !== null && latestKnownTodayRain > 0) {
+      let trailingDelta = 0;
+      for (let i = n - 1; i >= 0; i--) {
+        const d = sorted[i];
+        if (d.timestamp >= startOfTodaySec) {
+          if (d.rain_today_in !== undefined && d.rain_today_in !== null) {
+            rainAtPoint[i] = d.rain_today_in;
+            trailingDelta = Math.max(0, Math.round((latestKnownTodayRain - d.rain_today_in) * 100) / 100);
+          } else {
+            const calculated = Math.max(0, Math.round((latestKnownTodayRain - trailingDelta) * 100) / 100);
+            rainAtPoint[i] = calculated;
+          }
+          trailingDelta += (d.rain_delta_in || 0);
+        } else {
+          rainAtPoint[i] = -1;
+        }
+      }
+    }
+
     let cumulativeRain = 0;
     let prevDay = -1;
 
-    for (let i = 0; i < sorted.length; i++) {
+    for (let i = 0; i < n; i++) {
       const d = sorted[i];
       const dDate = new Date(d.timestamp * 1000);
       const dayNum = dDate.getDate();
@@ -138,13 +170,12 @@
       }
       prevDay = dayNum;
 
-      if (d.rain_today_in !== undefined && d.rain_today_in !== null) {
+      if (d.timestamp >= startOfTodaySec && rainAtPoint[i] !== undefined && rainAtPoint[i] >= 0) {
+        cumulativeRain = rainAtPoint[i];
+      } else if (d.rain_today_in !== undefined && d.rain_today_in !== null) {
         cumulativeRain = d.rain_today_in;
-      } else if (latestKnownTodayRain !== null && (currentTimeframe === '1H' || currentTimeframe === '6H' || currentTimeframe === '24H')) {
-        // Continuous straight line tracking today's daily total across recent readings
-        cumulativeRain = latestKnownTodayRain;
       } else {
-        cumulativeRain += (d.rain_delta_in || 0);
+        cumulativeRain = Math.round((cumulativeRain + (d.rain_delta_in || 0)) * 100) / 100;
       }
 
       // Detect data gaps between consecutive points
@@ -392,30 +423,30 @@
       title: [
         {
           text: `TEMPERATURE & COMFORT (${tempUnitLabel})`,
-          left: 55,
+          left: titleLeft,
           top: 6,
-          textStyle: { fontSize: 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
+          textStyle: { fontSize: isMobile ? 10 : 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
         },
         {
           text: `RAINFALL & RATE (${rainUnitLabel})`,
-          left: 55,
+          left: titleLeft,
           top: '43%',
-          textStyle: { fontSize: 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
+          textStyle: { fontSize: isMobile ? 10 : 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
         },
         {
           text: `WIND SPEED & GUSTS (${speedUnitLabel})`,
-          left: 55,
+          left: titleLeft,
           top: '71%',
-          textStyle: { fontSize: 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
+          textStyle: { fontSize: isMobile ? 10 : 11, fontFamily: 'monospace', color: titleColor, fontWeight: 'bold' }
         }
       ],
       grid: [
         // Grid 0: Temperature & Humidity
-        { left: 55, right: 55, top: 32, height: '33%' },
+        { left: gridLeft, right: gridRight, top: 32, height: '33%' },
         // Grid 1: Rainfall & Rate (Separate Pane)
-        { left: 55, right: 55, top: '48%', height: '18%' },
+        { left: gridLeft, right: gridRight, top: '48%', height: '18%' },
         // Grid 2: Wind Speed & Gusts (Separate Pane)
-        { left: 55, right: 55, top: '76%', height: '18%' }
+        { left: gridLeft, right: gridRight, top: '76%', height: '18%' }
       ],
       xAxis: [
         // 0: Top chart (labels hidden, true linear time axis)
@@ -446,17 +477,22 @@
           min: timelineMin,
           max: timelineMax,
           gridIndex: 2,
+          splitNumber: isMobile ? 4 : 8,
           axisLine: { lineStyle: { color: gridLineColor } },
           splitLine: { show: true, lineStyle: { color: gridLineColor } },
           axisTick: { show: true, lineStyle: { color: gridLineColor } },
           axisLabel: {
+            hideOverlap: true,
             color: textColor,
-            fontSize: 10,
+            fontSize: isMobile ? 9 : 10,
             fontFamily: 'monospace',
             formatter: (val: number) => {
               const d = new Date(val);
               if (currentTimeframe === '1H' || currentTimeframe === '6H' || currentTimeframe === '24H') {
                 return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              }
+              if (isMobile) {
+                return `${d.getMonth() + 1}/${d.getDate()}`;
               }
               return `${d.getMonth() + 1}/${d.getDate()} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
             }

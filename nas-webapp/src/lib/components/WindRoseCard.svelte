@@ -46,20 +46,17 @@
 </script>
 
 <div class="rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between h-full flex-1">
-  <!-- Top: Card Label & State in Upper Left (No Duplicate Peak Gust) -->
+  <!-- Top: Card Label & Condition Badge in Upper Right -->
   <div class="flex items-start justify-between mb-4">
     <div>
       <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
         Wind &amp; Direction
       </span>
-      <div class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-        Condition: <strong class="text-teal-600 dark:text-teal-400 font-bold">{condition.label}</strong>
-      </div>
     </div>
 
-    <!-- Direction Badge in Upper Right -->
-    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-      {isOnline ? (reading?.wind_cardinal || 'CALM') : 'OFFLINE'} {isOnline && reading?.wind_dir_deg !== null && reading?.wind_dir_deg !== undefined ? `(${Math.round(reading.wind_dir_deg)}°)` : ''}
+    <!-- Condition Badge in Upper Right -->
+    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium border {condition.color}">
+      {condition.label}
     </div>
   </div>
 
@@ -77,15 +74,6 @@
         <span class="text-[10px] sm:text-xs font-mono text-slate-400 uppercase tracking-wider font-semibold">
           {speedUnitLabel}
         </span>
-      </div>
-      <div class="text-[11px] sm:text-xs font-mono font-medium text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1 sm:gap-1.5">
-        <span>From</span>
-        <strong class="text-slate-700 dark:text-slate-200">
-          {isOnline ? (reading?.wind_cardinal || 'CALM') : 'OFFLINE'}
-        </strong>
-        {#if isOnline && reading?.wind_dir_deg !== null && reading?.wind_dir_deg !== undefined}
-          <span class="text-slate-400 font-mono">({Math.round(reading.wind_dir_deg)}°)</span>
-        {/if}
       </div>
     </div>
 

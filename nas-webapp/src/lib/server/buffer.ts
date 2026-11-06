@@ -406,6 +406,9 @@ function bucketReadings(items: WeatherReading[], bucketSeconds: number) {
       dominantDir = Math.round(deg);
     }
 
+    const latestInGroup = group[group.length - 1];
+    const groupRainToday = latestInGroup.rain_today_in !== undefined ? latestInGroup.rain_today_in : null;
+
     result.push({
       timestamp: ts,
       temp_f: Math.round((tempSum / n) * 10) / 10,
@@ -416,6 +419,7 @@ function bucketReadings(items: WeatherReading[], bucketSeconds: number) {
       humidity: Math.round(humSum / n),
       rain_delta_in: Math.round(rainSum * 100) / 100,
       rain_rate_in_hr: Math.round(rainRateMax * 100) / 100,
+      rain_today_in: groupRainToday,
       wind_speed_mph: Math.round((windSum / n) * 10) / 10,
       wind_gust_mph: Math.round(windGust * 10) / 10,
       wind_lull_mph: windLull === Infinity ? 0 : Math.round(windLull * 10) / 10,

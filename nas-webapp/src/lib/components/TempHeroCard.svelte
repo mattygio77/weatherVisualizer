@@ -113,12 +113,6 @@
         <span class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
           Low: <strong class="text-slate-700 dark:text-slate-200">{formatTemp(lowTemp, unit)}</strong>
         </span>
-        {#if isOnline && comfort}
-          <span class="text-slate-300 dark:text-slate-700">·</span>
-          <span class="text-xs font-mono font-medium text-slate-600 dark:text-slate-300">
-            {comfort.tempLabel} &amp; {comfort.humidityLabel}
-          </span>
-        {/if}
       </div>
     </div>
 
@@ -134,9 +128,10 @@
     </div>
   </div>
 
-  <!-- Middle: Hero Temperature Display -->
-  <div class="my-3">
-    <div class="flex flex-wrap items-baseline gap-2.5 sm:gap-3">
+  <!-- Middle: Hero Temperature Display & Centered Responsive Comfort Badge -->
+  <div class="my-3 flex items-center justify-between gap-3 sm:gap-4">
+    <!-- Left: Hero Temperature -->
+    <div class="flex items-baseline gap-2 flex-shrink-0">
       {#if isOnline && reading?.temp_f !== undefined && reading?.temp_f !== null}
         <span class="text-5xl sm:text-6xl font-bold font-mono tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
           {formatTemp(reading.temp_f, unit)}
@@ -148,18 +143,21 @@
         <span class="text-xs font-mono text-amber-500 font-medium">Awaiting Data</span>
       {/if}
 
-      {#if isOnline && comfort}
-        <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium border {comfort.color} shadow-sm">
-          {comfort.fullLabel}
-        </div>
-      {/if}
-
       {#if reading?.battery_ok === 0}
         <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">
           LOW BATT
         </span>
       {/if}
     </div>
+
+    <!-- Center/Right: Centered Comfort Badge scaling smoothly with available space -->
+    {#if isOnline && comfort}
+      <div class="flex-1 flex justify-center items-center px-1 sm:px-3">
+        <div class="px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm font-mono font-semibold border {comfort.color} shadow-sm text-center max-w-full truncate transition-all">
+          {comfort.fullLabel}
+        </div>
+      </div>
+    {/if}
   </div>
 
   <!-- Bottom: 3 Sub-Metric Blocks -->
@@ -167,7 +165,7 @@
     <!-- Feels Like -->
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
-        {reading?.feels_like_type || 'Feels Like'}
+        Feels Like
       </span>
       <span class="text-base sm:text-lg font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
         {isOnline ? formatTemp(reading?.feels_like_f, unit) : '--'}
@@ -186,11 +184,6 @@
           {isOnline ? formatTemp(reading?.dew_point_f, unit) : '--'}
         </span>
       </div>
-      {#if isOnline && reading?.comfort_level}
-        <span class="text-[10px] font-medium text-blue-600 dark:text-blue-400">
-          {reading.comfort_level}
-        </span>
-      {/if}
     </div>
 
     <!-- Humidity -->
