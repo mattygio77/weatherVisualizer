@@ -112,14 +112,17 @@
     const gustData: [number, number | null][] = [];
 
     // Sort data chronologically ascending
+    // Sort data chronologically ascending
     const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
 
-    const isWindowAccumulation = currentTimeframe === '1H' || currentTimeframe === '6H';
-    const rainSeriesName = currentTimeframe === '1H'
-      ? `1H Rain (${rainUnitLabel})`
-      : currentTimeframe === '6H'
-      ? `6H Rain (${rainUnitLabel})`
-      : `Daily Rain (${rainUnitLabel})`;
+    // Find the latest known rain_today_in (e.g. 0.13 in)
+    let latestKnownTodayRain: number | null = null;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i].rain_today_in !== undefined && sorted[i].rain_today_in !== null) {
+        latestKnownTodayRain = sorted[i].rain_today_in;
+        break;
+      }
+    }
 
     let cumulativeRain = 0;
     let prevDay = -1;
@@ -129,20 +132,19 @@
       const dDate = new Date(d.timestamp * 1000);
       const dayNum = dDate.getDate();
 
-      if (isWindowAccumulation) {
-        // Accumulate rain strictly within this specific 1H or 6H window
-        cumulativeRain += (d.rain_delta_in || 0);
+      // Reset daily accumulation at local midnight
+      if (prevDay !== -1 && dayNum !== prevDay) {
+        cumulativeRain = 0;
+      }
+      prevDay = dayNum;
+
+      if (d.rain_today_in !== undefined && d.rain_today_in !== null) {
+        cumulativeRain = d.rain_today_in;
+      } else if (latestKnownTodayRain !== null && (currentTimeframe === '1H' || currentTimeframe === '6H' || currentTimeframe === '24H')) {
+        // Continuous straight line tracking today's daily total across recent readings
+        cumulativeRain = latestKnownTodayRain;
       } else {
-        // Daily accumulation resetting at local midnight
-        if (prevDay !== -1 && dayNum !== prevDay) {
-          cumulativeRain = 0;
-        }
-        prevDay = dayNum;
-        if (d.rain_today_in !== undefined && d.rain_today_in !== null) {
-          cumulativeRain = d.rain_today_in;
-        } else {
-          cumulativeRain += (d.rain_delta_in || 0);
-        }
+        cumulativeRain += (d.rain_delta_in || 0);
       }
 
       // Detect data gaps between consecutive points
@@ -166,10 +168,21 @@
       tempData.push([tsMs, convertTemp(d.temp_f)]);
       feelsData.push([tsMs, convertTemp(d.feels_like_f)]);
       dewData.push([tsMs, convertTemp(d.dew_point_f)]);
+      humidityData.push([tsMs, d.humidity !== undefined && d.humidity !== null ? d.humidity : null]);
       rainData.push([tsMs, convertRain(cumulativeRain)]);
       rainRateData.push([tsMs, convertRain(d.rain_rate_in_hr || 0)]);
       windData.push([tsMs, convertSpeed(d.wind_speed_mph)]);
       gustData.push([tsMs, convertSpeed(d.wind_gust_mph)]);
+    }
+
+    // Ensure edge-to-edge line continuity for rain accumulation in 1H/6H
+    if (rainData.length > 0 && (currentTimeframe === '1H' || currentTimeframe === '6H')) {
+      if (rainData[0][0] > timelineMin) {
+        rainData.unshift([timelineMin, rainData[0][1]]);
+      }
+      if (rainData[rainData.length - 1][0] < timelineMax) {
+        rainData.push([timelineMax, rainData[rainData.length - 1][1]]);
+      }
     }
 
     // If the latest point is older than gap threshold, disconnect up to the current time
@@ -255,7 +268,7 @@
     // --- Pane 2: Rainfall & Accumulation ---
     if (showRain) {
       series.push({
-        name: rainSeriesName,
+        name: `Daily Rain (${rainUnitLabel})`,
         type: 'line',
         step: 'end',
         data: rainData,
