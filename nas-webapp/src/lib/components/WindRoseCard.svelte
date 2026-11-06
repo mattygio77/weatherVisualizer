@@ -46,20 +46,20 @@
 </script>
 
 <div class="rounded-2xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 p-5 sm:p-6 shadow-sm transition-colors flex flex-col justify-between h-full flex-1">
-  <!-- Top: Card Label & Condition Badge -->
+  <!-- Top: Card Label & State in Upper Left (No Duplicate Peak Gust) -->
   <div class="flex items-start justify-between mb-4">
     <div>
       <span class="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 font-mono">
         Wind &amp; Direction
       </span>
       <div class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400 mt-0.5">
-        Peak 10m Gust: <strong class="text-slate-700 dark:text-slate-200">{isOnline ? formatSpeed(reading?.wind_gust_mph, unit) : '--'}</strong>
+        Condition: <strong class="text-teal-600 dark:text-teal-400 font-bold">{condition.label}</strong>
       </div>
     </div>
 
-    <!-- Active Wind Condition Badge -->
-    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium border {condition.color}">
-      {condition.label}
+    <!-- Direction Badge in Upper Right -->
+    <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+      {isOnline ? (reading?.wind_cardinal || 'CALM') : 'OFFLINE'} {isOnline && reading?.wind_dir_deg !== null && reading?.wind_dir_deg !== undefined ? `(${Math.round(reading.wind_dir_deg)}°)` : ''}
     </div>
   </div>
 
@@ -151,7 +151,7 @@
     </div>
   </div>
 
-  <!-- Bottom: 3 Non-redundant Sub-metric Columns (Aligned with SystemHealthCard) -->
+  <!-- Bottom: 3 Non-redundant Sub-metric Columns (No duplicate state or peak gust) -->
   <div class="grid grid-cols-3 gap-2 pt-4 border-t border-slate-100 dark:border-slate-800/80 text-center sm:text-left min-h-[58px] items-center">
     <!-- 10m Lull -->
     <div class="flex flex-col">
@@ -163,23 +163,23 @@
       </span>
     </div>
 
-    <!-- Cardinal & Degrees -->
+    <!-- Direction Details -->
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
-        Direction
+        Compass Heading
       </span>
       <span class="text-xs sm:text-sm font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
-        {isOnline ? (reading?.wind_cardinal || 'CALM') : 'OFFLINE'} {isOnline && reading?.wind_dir_deg !== null && reading?.wind_dir_deg !== undefined ? `(${Math.round(reading.wind_dir_deg)}°)` : ''}
+        {isOnline && reading?.wind_dir_deg !== null && reading?.wind_dir_deg !== undefined ? `${Math.round(reading.wind_dir_deg)}° ${reading?.wind_cardinal || ''}` : (isOnline ? 'CALM' : 'OFFLINE')}
       </span>
     </div>
 
-    <!-- Beaufort Condition -->
+    <!-- Gust Spread -->
     <div class="flex flex-col">
       <span class="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 font-mono">
-        Beaufort Scale
+        10m Range
       </span>
-      <span class="text-xs sm:text-sm font-semibold font-mono text-slate-800 dark:text-slate-200 mt-0.5">
-        {condition.label}
+      <span class="text-xs sm:text-sm font-semibold font-mono tabular-nums text-slate-800 dark:text-slate-200 mt-0.5">
+        {isOnline ? `${formatSpeed(reading?.wind_lull_mph, unit)} – ${formatSpeed(reading?.wind_gust_mph, unit)}` : '--'}
       </span>
     </div>
   </div>

@@ -15,6 +15,72 @@
     return `${t > 0 ? '↑' : '↓'} ${sign}${t.toFixed(1)}°/hr`;
   }
 
+
+  interface ThermalComfort {
+    tempLabel: string;
+    humidityLabel: string;
+    fullLabel: string;
+    color: string;
+  }
+
+  function getThermalComfort(
+    tempF: number | null | undefined,
+    rh: number | null | undefined,
+    dewF: number | null | undefined,
+    feelsF: number | null | undefined
+  ): ThermalComfort | null {
+    if (tempF === null || tempF === undefined || isNaN(tempF)) return null;
+
+    const t = feelsF ?? tempF;
+    const humidity = rh ?? 50;
+    const dew = dewF ?? tempF;
+
+    // Temperature adjective
+    let tempLabel = 'Comfortable';
+    if (t < 32) tempLabel = 'Freezing';
+    else if (t < 45) tempLabel = 'Very Cold';
+    else if (t < 55) tempLabel = 'Cold';
+    else if (t < 65) tempLabel = 'Cool';
+    else if (t < 75) tempLabel = 'Comfortable';
+    else if (t < 85) tempLabel = 'Warm';
+    else if (t < 95) tempLabel = 'Hot';
+    else tempLabel = 'Sweltering';
+
+    // Humidity adjective based on dew point and relative humidity
+    let humidityLabel = 'Comfortable';
+    if (dew < 45 && humidity < 35) humidityLabel = 'Dry';
+    else if (dew < 50) humidityLabel = 'Crisp';
+    else if (dew <= 60 && humidity <= 60) humidityLabel = 'Pleasant';
+    else if (dew > 72 || (t >= 80 && humidity >= 70)) humidityLabel = 'Oppressive';
+    else if (dew >= 67 || (t >= 75 && humidity >= 65)) humidityLabel = 'Muggy';
+    else if (dew >= 62 || humidity >= 75) humidityLabel = t < 65 ? 'Damp' : 'Humid';
+    else if (dew >= 58 || humidity >= 65) humidityLabel = 'Moderate';
+    else humidityLabel = 'Comfortable';
+
+    let fullLabel = `${tempLabel} · ${humidityLabel}`;
+    if ((tempLabel === 'Comfortable' || tempLabel === 'Mild') && (humidityLabel === 'Comfortable' || humidityLabel === 'Pleasant')) {
+      fullLabel = 'Comfortable · Pleasant';
+    }
+
+    // Color theme
+    let color = 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
+    if (t >= 95 || humidityLabel === 'Oppressive') {
+      color = 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20';
+    } else if (t >= 85 || humidityLabel === 'Muggy') {
+      color = 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
+    } else if (t >= 75) {
+      color = 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20';
+    } else if (tempLabel === 'Comfortable') {
+      color = 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
+    } else if (t < 45) {
+      color = 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20';
+    }
+
+    return { tempLabel, humidityLabel, fullLabel, color };
+  }
+
+  $: comfort = isOnline ? getThermalComfort(reading?.temp_f, reading?.humidity, reading?.dew_point_f, reading?.feels_like_f) : null;
+
   // Generate SVG path for 24-hour background sparkline
   $: sparkPath = (() => {
     if (!sparkline || sparkline.length < 2) return '';
@@ -47,6 +113,12 @@
         <span class="text-xs font-mono font-medium text-slate-500 dark:text-slate-400">
           Low: <strong class="text-slate-700 dark:text-slate-200">{formatTemp(lowTemp, unit)}</strong>
         </span>
+        {#if isOnline && comfort}
+          <span class="text-slate-300 dark:text-slate-700">·</span>
+          <span class="text-xs font-mono font-medium text-slate-600 dark:text-slate-300">
+            {comfort.tempLabel} &amp; {comfort.humidityLabel}
+          </span>
+        {/if}
       </div>
     </div>
 
@@ -64,7 +136,7 @@
 
   <!-- Middle: Hero Temperature Display -->
   <div class="my-3">
-    <div class="flex items-baseline gap-2">
+    <div class="flex flex-wrap items-baseline gap-2.5 sm:gap-3">
       {#if isOnline && reading?.temp_f !== undefined && reading?.temp_f !== null}
         <span class="text-5xl sm:text-6xl font-bold font-mono tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
           {formatTemp(reading.temp_f, unit)}
@@ -74,6 +146,12 @@
           --
         </span>
         <span class="text-xs font-mono text-amber-500 font-medium">Awaiting Data</span>
+      {/if}
+
+      {#if isOnline && comfort}
+        <div class="px-2.5 py-1 rounded-full text-xs font-mono font-medium border {comfort.color} shadow-sm">
+          {comfort.fullLabel}
+        </div>
       {/if}
 
       {#if reading?.battery_ok === 0}

@@ -63,12 +63,12 @@
 
   function getGapThresholdSeconds(tf: string): number {
     switch (tf) {
-      case '1H': return 90;     // > 1.5 min without packet = gap
-      case '6H': return 180;    // > 3 min without packet = gap
-      case '24H': return 900;   // > 15 min without packet = gap
-      case '7D': return 1800;   // > 30 min without packet = gap
+      case '1H': return 300;    // 5 minutes (prevents false gaps from single missed RF packets)
+      case '6H': return 300;    // 5 minutes
+      case '24H': return 900;   // 15 minutes
+      case '7D': return 1800;   // 30 minutes
       case '30D':
-      case '1Y': return 7200;   // > 2 hours without packet = gap
+      case '1Y': return 7200;   // 2 hours
       default: return 900;
     }
   }
@@ -114,8 +114,36 @@
     // Sort data chronologically ascending
     const sorted = [...data].sort((a, b) => a.timestamp - b.timestamp);
 
+    const isWindowAccumulation = currentTimeframe === '1H' || currentTimeframe === '6H';
+    const rainSeriesName = currentTimeframe === '1H'
+      ? `1H Rain (${rainUnitLabel})`
+      : currentTimeframe === '6H'
+      ? `6H Rain (${rainUnitLabel})`
+      : `Daily Rain (${rainUnitLabel})`;
+
+    let cumulativeRain = 0;
+    let prevDay = -1;
+
     for (let i = 0; i < sorted.length; i++) {
       const d = sorted[i];
+      const dDate = new Date(d.timestamp * 1000);
+      const dayNum = dDate.getDate();
+
+      if (isWindowAccumulation) {
+        // Accumulate rain strictly within this specific 1H or 6H window
+        cumulativeRain += (d.rain_delta_in || 0);
+      } else {
+        // Daily accumulation resetting at local midnight
+        if (prevDay !== -1 && dayNum !== prevDay) {
+          cumulativeRain = 0;
+        }
+        prevDay = dayNum;
+        if (d.rain_today_in !== undefined && d.rain_today_in !== null) {
+          cumulativeRain = d.rain_today_in;
+        } else {
+          cumulativeRain += (d.rain_delta_in || 0);
+        }
+      }
 
       // Detect data gaps between consecutive points
       if (i > 0) {
@@ -129,8 +157,6 @@
           feelsData.push([gapStartMs, null], [gapEndMs, null]);
           dewData.push([gapStartMs, null], [gapEndMs, null]);
           humidityData.push([gapStartMs, null], [gapEndMs, null]);
-          rainData.push([gapStartMs, null], [gapEndMs, null]);
-          rainRateData.push([gapStartMs, null], [gapEndMs, null]);
           windData.push([gapStartMs, null], [gapEndMs, null]);
           gustData.push([gapStartMs, null], [gapEndMs, null]);
         }
@@ -140,8 +166,7 @@
       tempData.push([tsMs, convertTemp(d.temp_f)]);
       feelsData.push([tsMs, convertTemp(d.feels_like_f)]);
       dewData.push([tsMs, convertTemp(d.dew_point_f)]);
-      humidityData.push([tsMs, d.humidity !== undefined && d.humidity !== null ? d.humidity : null]);
-      rainData.push([tsMs, convertRain(d.rain_delta_in || 0)]);
+      rainData.push([tsMs, convertRain(cumulativeRain)]);
       rainRateData.push([tsMs, convertRain(d.rain_rate_in_hr || 0)]);
       windData.push([tsMs, convertSpeed(d.wind_speed_mph)]);
       gustData.push([tsMs, convertSpeed(d.wind_gust_mph)]);
@@ -230,11 +255,20 @@
     // --- Pane 2: Rainfall & Accumulation ---
     if (showRain) {
       series.push({
-        name: `Rain (${rainUnitLabel})`,
-        type: 'bar',
+        name: rainSeriesName,
+        type: 'line',
+        step: 'end',
         data: rainData,
-        barMaxWidth: 6,
-        itemStyle: { color: 'rgba(56, 189, 248, 0.8)', borderRadius: [2, 2, 0, 0] },
+        connectNulls: true,
+        showSymbol: false,
+        lineStyle: { width: 2, color: '#38BDF8' },
+        itemStyle: { color: '#38BDF8' },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(56, 189, 248, 0.35)' },
+            { offset: 1, color: 'rgba(56, 189, 248, 0.02)' }
+          ])
+        },
         xAxisIndex: 1,
         yAxisIndex: 2
       });
@@ -245,11 +279,11 @@
         name: `Rain Rate (${rainUnitLabel}/h)`,
         type: 'line',
         data: rainRateData,
-        connectNulls: false,
+        connectNulls: true,
         smooth: false,
         showSymbol: false,
-        lineStyle: { width: 1.5, color: '#0284C7' },
-        itemStyle: { color: '#0284C7' },
+        lineStyle: { width: 2, color: '#F43F5E' },
+        itemStyle: { color: '#F43F5E' },
         xAxisIndex: 1,
         yAxisIndex: 3
       });
@@ -297,36 +331,46 @@
       animation: false,
       tooltip: {
         trigger: 'axis',
+        confine: true, // Prevents tooltip from rendering off-screen
         axisPointer: { type: 'cross', lineStyle: { color: '#64748B', type: 'dashed' } },
-        backgroundColor: isDark ? '#1E293B' : '#FFFFFF',
+        backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.96)',
         borderColor: isDark ? '#334155' : '#E2E8F0',
+        borderWidth: 1,
+        padding: [8, 12],
+        extraCssText: 'box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.3); backdrop-filter: blur(12px); z-index: 1000;',
         textStyle: { color: isDark ? '#F8FAFC' : '#0F172A', fontSize: 12 },
         formatter: (params: any) => {
           if (!params || !params.length) return '';
-          const valid = params.find((p: any) => p.value && p.value[1] !== null && p.value[1] !== undefined);
-          const ts = valid ? valid.value[0] : params[0].value[0];
-          const d = new Date(ts);
-          const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
-          const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
-          let html = `<div style="font-weight:600;margin-bottom:6px;font-family:monospace;border-bottom:1px solid ${isDark ? '#334155' : '#E2E8F0'};padding-bottom:3px;">${dateStr} · ${timeStr}</div>`;
+          try {
+            const valid = params.find((p: any) => p && p.value && p.value[1] !== null && p.value[1] !== undefined);
+            const rawTs = valid?.value?.[0] ?? (Array.isArray(params[0]?.value) ? params[0].value[0] : (params[0]?.axisValue ?? Date.now()));
+            const ts = Number(rawTs) || Date.now();
+            const d = new Date(ts);
+            const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' });
+            const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+            let html = `<div style="font-weight:600;margin-bottom:6px;font-family:monospace;border-bottom:1px solid ${isDark ? '#334155' : '#E2E8F0'};padding-bottom:3px;">${dateStr} · ${timeStr}</div>`;
 
-          let hasData = false;
-          const seenSeries = new Set();
-          for (const p of params) {
-            if (seenSeries.has(p.seriesName)) continue;
-            seenSeries.add(p.seriesName);
-            if (p.value && p.value[1] !== null && p.value[1] !== undefined) {
-              hasData = true;
-              html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:11px;margin:2px 0;">
-                <span>${p.marker} ${p.seriesName}</span>
-                <span style="font-weight:bold;font-family:monospace;">${p.value[1]}</span>
-              </div>`;
+            let hasData = false;
+            const seenSeries = new Set();
+            for (const p of params) {
+              if (!p || seenSeries.has(p.seriesName)) continue;
+              seenSeries.add(p.seriesName);
+              if (p.value && p.value[1] !== null && p.value[1] !== undefined) {
+                hasData = true;
+                html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:11px;margin:2px 0;">
+                  <span>${p.marker || ''} ${p.seriesName}</span>
+                  <span style="font-weight:bold;font-family:monospace;">${p.value[1]}</span>
+                </div>`;
+              }
             }
+            if (!hasData) {
+              html += `<div style="font-size:11px;color:#94A3B8;font-style:italic;">No signal / Disconnected</div>`;
+            }
+            return html;
+          } catch (err) {
+            console.warn('Tooltip format exception:', err);
+            return '';
           }
-          if (!hasData) {
-            html += `<div style="font-size:11px;color:#94A3B8;font-style:italic;">No signal / Disconnected</div>`;
-          }
-          return html;
         }
       },
       axisPointer: {
@@ -436,20 +480,41 @@
           splitLine: { show: false },
           axisLabel: { color: textColor, fontSize: 10, formatter: '{value}%' }
         },
-        // 2: Rain Accumulation (Grid 1 - starts at 0, auto-scales max)
+        // 2: Rain Accumulation (Grid 1 - starts at 0, adaptive fine-grained scale)
         {
           type: 'value',
           gridIndex: 1,
           position: 'left',
           min: 0,
           max: (val) => {
-            if (val.max > 0) return Math.ceil(val.max * 10) / 10 + (unit === 'metric' ? 1 : 0.05);
-            return unit === 'metric' ? 5 : 0.2;
+            if (val.max <= 0 || isNaN(val.max)) {
+              return unit === 'metric' ? 2 : 0.05;
+            }
+            if (val.max <= 0.05) {
+              return unit === 'metric' ? 2 : 0.08;
+            }
+            if (val.max <= 0.15) {
+              return unit === 'metric' ? 5 : 0.20;
+            }
+            if (val.max <= 0.50) {
+              return unit === 'metric' ? 15 : 0.60;
+            }
+            if (val.max <= 1.0) {
+              return unit === 'metric' ? 30 : 1.20;
+            }
+            return Math.ceil((val.max * 1.2) * 10) / 10;
           },
           splitLine: { lineStyle: { color: gridLineColor } },
-          axisLabel: { color: textColor, fontSize: 10, formatter: `{value} ${rainUnitLabel}` }
+          axisLabel: {
+            color: textColor,
+            fontSize: 10,
+            formatter: (v: number) => {
+              if (unit === 'metric') return `${v.toFixed(1)} mm`;
+              return `${v.toFixed(2)} in`;
+            }
+          }
         },
-        // 3: Rain Rate (Grid 1 - right axis)
+        // 3: Rain Rate (Grid 1 - right axis, adaptive fine-grained scale)
         {
           type: 'value',
           gridIndex: 1,
@@ -457,11 +522,28 @@
           show: showRainRate,
           min: 0,
           max: (val) => {
-            if (val.max > 0) return Math.ceil(val.max * 10) / 10 + 0.1;
-            return unit === 'metric' ? 10 : 0.5;
+            if (val.max <= 0 || isNaN(val.max)) {
+              return unit === 'metric' ? 2.5 : 0.10;
+            }
+            if (val.max <= 0.10) {
+              return unit === 'metric' ? 5 : 0.20;
+            }
+            if (val.max <= 0.50) {
+              return unit === 'metric' ? 15 : 0.60;
+            }
+            return Math.ceil((val.max * 1.2) * 10) / 10;
           },
           splitLine: { show: false },
-          axisLabel: { color: textColor, fontSize: 10, formatter: `{value} ${unit === 'metric' ? 'mm/h' : 'in/h'}` }
+          axisLine: { show: true, lineStyle: { color: isDark ? 'rgba(244, 63, 94, 0.4)' : 'rgba(244, 63, 94, 0.5)' } },
+          axisTick: { show: true, lineStyle: { color: isDark ? 'rgba(244, 63, 94, 0.4)' : 'rgba(244, 63, 94, 0.5)' } },
+          axisLabel: {
+            color: isDark ? '#FB7185' : '#E11D48',
+            fontSize: 10,
+            formatter: (v: number) => {
+              if (unit === 'metric') return `${v.toFixed(1)} mm/h`;
+              return `${v.toFixed(2)} in/h`;
+            }
+          }
         },
         // 4: Wind Speed & Gusts (Grid 2 - auto-scales max to peak gust)
         {
@@ -559,8 +641,8 @@
       <input type="checkbox" bind:checked={showRain} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-sky-500" />
       <span>Rain Accum</span>
     </label>
-    <label class="flex items-center gap-1.5 cursor-pointer text-sky-600 dark:text-sky-400">
-      <input type="checkbox" bind:checked={showRainRate} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-sky-600" />
+    <label class="flex items-center gap-1.5 cursor-pointer text-rose-500 dark:text-rose-400">
+      <input type="checkbox" bind:checked={showRainRate} on:change={() => fetchHistory(currentTimeframe)} class="rounded text-rose-500" />
       <span>Rain Rate</span>
     </label>
 

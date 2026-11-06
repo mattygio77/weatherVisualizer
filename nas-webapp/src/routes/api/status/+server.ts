@@ -1,10 +1,9 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
-import { getBufferStats, getLatestReading } from '$lib/server/buffer';
-import { getDbStats } from '$lib/server/db';
+import { getBufferStats, getLatestReading, getRamDbStats } from '$lib/server/buffer';
 
 export const GET: RequestHandler = () => {
   const bufferStats = getBufferStats();
-  const dbStats = getDbStats();
+  const dbStats = getRamDbStats(); // Served 100% from RAM to prevent disk wakeups
   const latest = getLatestReading();
 
   return json({

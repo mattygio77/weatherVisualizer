@@ -7,7 +7,7 @@ import {
   processWindTelemetry,
   type WeatherReading
 } from '$lib/server/meteorology';
-import { pushReading, getLatestReading } from '$lib/server/buffer';
+import { updateRainAndPush, getLatestReading } from '$lib/server/buffer';
 import { broadcastTelemetry } from '$lib/server/sse';
 import type { RequestHandler } from '@sveltejs/kit';
 
@@ -73,7 +73,7 @@ async function handleWeatherUndergroundIntercept(url: URL, request: Request): Pr
       source: 'wifi_intercept'
     };
 
-    pushReading(reading);
+    updateRainAndPush(reading, rawRainIn ?? rawDailyRainIn);
     broadcastTelemetry(reading);
   }
 

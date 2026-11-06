@@ -125,10 +125,34 @@ function initSchema(db: DatabaseAdapter) {
       sample_count INTEGER
     );
 
+    CREATE TABLE IF NOT EXISTS station_state (
+      key TEXT PRIMARY KEY,
+      value TEXT
+    );
+
     CREATE INDEX IF NOT EXISTS idx_raw_ts ON readings_raw(timestamp);
     CREATE INDEX IF NOT EXISTS idx_5m_ts ON readings_5m(bucket_ts);
     CREATE INDEX IF NOT EXISTS idx_1h_ts ON readings_1h(bucket_ts);
   `);
+}
+
+export function getState(key: string): string | null {
+  try {
+    const db = getDb();
+    const row = db.prepare('SELECT value FROM station_state WHERE key = ?').get(key) as any;
+    return row ? String(row.value) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setState(key: string, value: string): void {
+  try {
+    const db = getDb();
+    db.prepare('INSERT OR REPLACE INTO station_state (key, value) VALUES (?, ?)').run(key, value);
+  } catch (err: any) {
+    console.error('[DB] setState error:', err.message);
+  }
 }
 
 /**
@@ -362,5 +386,67 @@ export function getDbStats() {
     roll1hCount,
     fileSizeMb,
     dbPath: DB_PATH
+  };
+}
+
+/**
+ * Computes exact rain totals for 24h, current month-to-date, and current year-to-date
+ * from SQLite persisted records plus in-memory unflushed buffer samples.
+ */
+export function getRainTotals(unflushedBuffer: WeatherReading[] = []): { rainToday: number; rain24h: number; monthTotal: number; yearTotal: number } {
+  const db = getDb();
+  const now = new Date();
+  const nowSec = Math.floor(now.getTime() / 1000);
+  const start24hSec = nowSec - 86400;
+
+  // Start of today at local midnight
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+  const startTodaySec = Math.floor(startToday.getTime() / 1000);
+
+  // Start of current month at local midnight (day 1)
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
+  const startOfMonthSec = Math.floor(startOfMonth.getTime() / 1000);
+
+  // Start of current year at local midnight (Jan 1)
+  const startOfYear = new Date(now.getFullYear(), 0, 1, 0, 0, 0);
+  const startOfYearSec = Math.floor(startOfYear.getTime() / 1000);
+
+  let rToday = 0;
+  let r24h = 0;
+  let rMonth = 0;
+  let rYear = 0;
+
+  try {
+    const qToday = db.prepare('SELECT COALESCE(SUM(rain_delta_in), 0) as total FROM readings_raw WHERE timestamp >= ?').get(startTodaySec) as any;
+    if (qToday) rToday = Number(qToday.total) || 0;
+
+    const q24h = db.prepare('SELECT COALESCE(SUM(rain_delta_in), 0) as total FROM readings_raw WHERE timestamp >= ?').get(start24hSec) as any;
+    if (q24h) r24h = Number(q24h.total) || 0;
+
+    const qMonth = db.prepare('SELECT COALESCE(SUM(rain_delta_in), 0) as total FROM readings_raw WHERE timestamp >= ?').get(startOfMonthSec) as any;
+    if (qMonth) rMonth = Number(qMonth.total) || 0;
+
+    const qYear = db.prepare('SELECT COALESCE(SUM(rain_delta_in), 0) as total FROM readings_raw WHERE timestamp >= ?').get(startOfYearSec) as any;
+    if (qYear) rYear = Number(qYear.total) || 0;
+  } catch (err: any) {
+    console.error('[DB] getRainTotals error:', err.message);
+  }
+
+  // Include unflushed buffer readings
+  for (const b of unflushedBuffer) {
+    const delta = b.rain_delta_in || 0;
+    if (delta > 0) {
+      if (b.timestamp >= startTodaySec) rToday += delta;
+      if (b.timestamp >= start24hSec) r24h += delta;
+      if (b.timestamp >= startOfMonthSec) rMonth += delta;
+      if (b.timestamp >= startOfYearSec) rYear += delta;
+    }
+  }
+
+  return {
+    rainToday: Math.round(rToday * 100) / 100,
+    rain24h: Math.round(r24h * 100) / 100,
+    monthTotal: Math.round(rMonth * 100) / 100,
+    yearTotal: Math.round(rYear * 100) / 100
   };
 }

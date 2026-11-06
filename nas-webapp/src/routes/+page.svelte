@@ -22,6 +22,7 @@
   let highTemp = data.highTemp;
   let lowTemp = data.lowTemp;
   let trend1h = data.trend1h;
+  let rainToday = data.rainToday || 0;
   let rain24h = data.rain24h;
   let monthTotal = data.monthTotal;
   let yearTotal = data.yearTotal;
@@ -66,6 +67,9 @@
         dbStats = json.database;
         if (json.latest_reading && (!reading || json.latest_reading.timestamp > reading.timestamp)) {
           reading = json.latest_reading;
+          if (reading.rain_today_in !== undefined && reading.rain_today_in !== null) {
+            rainToday = reading.rain_today_in;
+          }
         }
       }
     } catch {}
@@ -107,6 +111,10 @@
         reading = fresh;
         lastPacketSecondsAgo = 0;
         isOnline = true;
+
+        if (fresh.rain_today_in !== undefined && fresh.rain_today_in !== null) {
+          rainToday = fresh.rain_today_in;
+        }
 
         if (bufferStats) {
           bufferStats.queueLength++;
@@ -173,6 +181,7 @@
         <RainHeroCard
           {reading}
           {unit}
+          {rainToday}
           {rain24h}
           {monthTotal}
           {yearTotal}

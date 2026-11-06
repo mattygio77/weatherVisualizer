@@ -3,6 +3,7 @@
 
   export let reading: WeatherReading | null = null;
   export let unit: UnitSystem = 'imperial';
+  export let rainToday: number = 0;
   export let rain24h: number = 0;
   export let monthTotal: number = 0;
   export let yearTotal: number = 0;
@@ -41,7 +42,7 @@
   <div class="my-3">
     <div class="flex items-baseline gap-2">
       <span class="text-5xl sm:text-6xl font-bold font-mono tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
-        {formatRain(reading?.rain_today_in, unit)}
+        {formatRain(reading?.rain_today_in ?? rainToday, unit)}
       </span>
       <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">
         Today

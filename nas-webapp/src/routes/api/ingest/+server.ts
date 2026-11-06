@@ -8,7 +8,7 @@ import {
   processWindTelemetry,
   type WeatherReading
 } from '$lib/server/meteorology';
-import { pushReading, getLatestReading } from '$lib/server/buffer';
+import { updateRainAndPush, getLatestReading } from '$lib/server/buffer';
 import { broadcastTelemetry } from '$lib/server/sse';
 
 const INGEST_API_KEY = process.env.INGEST_API_KEY || 'replace_with_long_random_secret';
@@ -71,8 +71,8 @@ export const POST: RequestHandler = async ({ request }) => {
     source
   };
 
-  // Push to 3-hour RAM buffer and broadcast to live clients
-  pushReading(reading);
+  // Push to RAM buffer with accurate rain tracking and broadcast to live clients
+  updateRainAndPush(reading, rawRainIn);
   broadcastTelemetry(reading);
 
   return json({ success: true, reading });
