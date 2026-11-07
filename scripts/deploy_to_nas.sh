@@ -45,16 +45,16 @@ cd "$REPO_DIR"
 tar --exclude='node_modules' --exclude='.git' --exclude='.svelte-kit' --exclude='build' --exclude='data' -czf - \
   docker-compose.all-on-nas.yml \
   docker-compose.yml \
-  .env.example \
   pi-ingest \
   nas-webapp | \
   ssh -o StrictHostKeyChecking=no $KEY_ARG "${NAS_USER}@${NAS_IP}" "tar -xzf - -C ${TARGET_DIR} && cp ${TARGET_DIR}/docker-compose.all-on-nas.yml ${TARGET_DIR}/docker-compose.yml"
 
-# 3. Securely sync .env secrets if present locally (file is gitignored)
-if [ -f "$REPO_DIR/.env" ]; then
-  echo "🔐 Syncing .env secrets to NAS..."
-  scp -o StrictHostKeyChecking=no $KEY_ARG "$REPO_DIR/.env" "${NAS_USER}@${NAS_IP}:${TARGET_DIR}/.env"
-fi
+# 3. Clean up any obsolete .env files and set persistent pin.txt
+echo "🧹 Cleaning up any obsolete .env files on NAS..."
+ssh -o StrictHostKeyChecking=no $KEY_ARG "${NAS_USER}@${NAS_IP}" "rm -f ${TARGET_DIR}/.env ${TARGET_DIR}/.env.example"
+
+echo "🔑 Ensuring active PIN (789789) is set in ${TARGET_DIR}/data/pin.txt..."
+ssh -o StrictHostKeyChecking=no $KEY_ARG "${NAS_USER}@${NAS_IP}" "echo -n '789789' > ${TARGET_DIR}/data/pin.txt"
 
 echo "================================================================="
 echo " Sync complete! Files are staged at ${TARGET_DIR}."

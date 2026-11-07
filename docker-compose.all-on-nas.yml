@@ -49,7 +49,7 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DB_PATH=/app/data/weather.db
-      - DASHBOARD_PIN=${DASHBOARD_PIN:-123456}
+      - DASHBOARD_PIN=789789
       - SESSION_SECRET=${SESSION_SECRET:-acurite_weather_pws_session_secret_998877}
       - WU_INTERCEPT_KEY=${WU_INTERCEPT_KEY:-12345}
       - INGEST_API_KEY=${INGEST_API_KEY:-acurite_sdr_secure_ingest_key_2026}

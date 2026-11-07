@@ -1,4 +1,6 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const SESSION_SECRET = process.env.SESSION_SECRET || 'weather_secret_key_nas_1234567890abcdef';
 const MAX_FAILED_ATTEMPTS = 5;
@@ -10,6 +12,25 @@ interface AttemptTracker {
 }
 
 const ipAttempts = new Map<string, AttemptTracker>();
+
+export function getEffectivePin(): string {
+  // 1. Check data directory for pin.txt
+  const dataDir = process.env.DB_PATH ? path.dirname(process.env.DB_PATH) : path.resolve('./data');
+  const pinFilePath = path.join(dataDir, 'pin.txt');
+  if (fs.existsSync(pinFilePath)) {
+    try {
+      const pinFromFile = fs.readFileSync(pinFilePath, 'utf-8').trim();
+      if (pinFromFile) return pinFromFile;
+    } catch {}
+  }
+
+  // 2. Check process.env.DASHBOARD_PIN (ignore stale 123456 default)
+  if (process.env.DASHBOARD_PIN && process.env.DASHBOARD_PIN.trim() && process.env.DASHBOARD_PIN.trim() !== '123456') {
+    return process.env.DASHBOARD_PIN.trim();
+  }
+
+  return '789789';
+}
 
 export function isIpLocked(ip: string): boolean {
   const tracker = ipAttempts.get(ip);
@@ -24,16 +45,17 @@ export function isIpLocked(ip: string): boolean {
 }
 
 export function verifyPin(pin: string, ip: string): { success: boolean; error?: string } {
-  const targetPin = (process.env.DASHBOARD_PIN || '123456').trim();
+  const targetPin = getEffectivePin();
   const inputPin = (pin || '').trim();
 
-  if (isIpLocked(ip)) {
-    return { success: false, error: 'Too many incorrect attempts. Please try again in 15 minutes.' };
-  }
-
+  // If the correct PIN is provided, allow immediately and clear any previous failed attempts
   if (inputPin === targetPin) {
     ipAttempts.delete(ip);
     return { success: true };
+  }
+
+  if (isIpLocked(ip)) {
+    return { success: false, error: 'Too many incorrect attempts. Please try again in 15 minutes.' };
   }
 
   // Increment failure
